@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "google-genai>=2.10.0",
+    "pinecone-text>=0.11.0",
 ]
 
 [dependency-groups]
@@ -30,10 +31,18 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
-python_version = "3.11"
+# Target 3.12 so numpy 2.x stubs (which use the `type` alias statement) parse correctly.
+# The runtime still targets Python >=3.11 (see `requires-python`); all project code uses
+# `from __future__ import annotations` and stays fully compatible with 3.11+.
+python_version = "3.12"
 strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# pinecone-text ships no type stubs; treat all imports from it as Any.
+module = ["pinecone_text", "pinecone_text.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
