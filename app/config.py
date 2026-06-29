@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
 
     # --- Retrieval ---
-    embed_dim: int | None = None  # PINNED at A3 once the Gemini model is chosen
+    embed_dim: int = 768  # Pinned at A3: gemini-embedding-001, Matryoshka 768-dim
     corpus_cap: int = 3000
     hybrid_alpha: float = 0.5
 
