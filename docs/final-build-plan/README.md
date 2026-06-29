@@ -33,8 +33,10 @@ it records how we got here, not what is current. When current state changes, upd
    a new entry in `05-DECISIONS-LOCKED.md`.
 2. **The API contract (`03`) and data model (`02`) are binding.** Code conforms to them, not the
    reverse. If you believe one is wrong, stop and raise it — don't silently diverge.
-3. **The learning layer is a core graded requirement.** Every task tagged 📚 ships a concept doc +
-   runnable script + self-quiz, and you log it in `LEARNING-LOG.md`. Skipping it = task not done.
+3. **The learning layer is a core graded requirement (repeatable pattern).** Any task touching a
+   concept ships a concept doc (from `docs/learn/_TEMPLATE.md`) + a runnable script (from
+   `learn/_template.py`) + a self-quiz, logged in `LEARNING-LOG.md`. The pattern is defined once in
+   LEARNING-LOG → "The repeatable pattern". Skipping it = task not done.
 4. **One feature branch + PR per slice.** Keep `main` presentable (repo goes public after Slice A).
 5. **Verify honestly.** State what ran vs. what is N/A; never round "renders" up to "verified".
 

@@ -1,7 +1,19 @@
 # Learning Log
 
 The learning layer is a **core graded requirement** (`05-DECISIONS-LOCKED.md` D5). Update this log as
-you complete each 📚 task. A task is not done until its row is `done` with all artifacts present.
+you complete each task. A task is not done until its row is `done` with all artifacts present.
+
+## The repeatable pattern (do this for EVERY task that touches a concept)
+This is the baked-in foundation — not optional, not only for "AI" tasks. Each such task produces:
+
+1. **Concept doc** — `docs/learn/NN-<slug>.md`, copied from **`docs/learn/_TEMPLATE.md`**
+   (6 fixed sections: Concept · In QueuePilot · Why this way · Verify it yourself · Self-quiz · Takeaway).
+2. **Runnable script** — `learn/NN_<slug>.py`, copied from **`learn/_template.py`**; runs standalone
+   via `uv run python learn/NN_<slug>.py` and prints output that *proves* the concept.
+3. **A row in this log** — set to `done` only when doc + script + self-quiz all exist and the script runs.
+
+`NN` is a zero-padded sequence shared by the doc and its script (e.g. `00`, `01`). Reference example:
+A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 
 ## How to use
 - One row per concept. Fill `doc`, `script`, `self-quiz` when each exists.
@@ -12,6 +24,7 @@ you complete each 📚 task. A task is not done until its row is `done` with all
 
 | Concept | Task | Doc | Script | Self-quiz | Status | Takeaway |
 |---|---|---|---|---|---|---|
+| Tooling & skeleton (uv, pydantic-settings, FastAPI) | A1 | `docs/learn/00-tooling-and-skeleton.md` | `learn/00_config_demo.py` | in doc | **done** | Config is a typed, cached, server-side boundary that fails loudly on bad env vars. |
 | Embeddings & dimensions | A3 | `docs/learn/01-embeddings.md` | `learn/01_embeddings.py` | in doc | not-started | |
 | BM25 / sparse vectors | A4 | `docs/learn/02-hybrid-retrieval.md` | `learn/02_bm25_sparse.py` | in doc | not-started | |
 | Hybrid fusion & normalization | A6 | `docs/learn/02-hybrid-retrieval.md` | `learn/03_hybrid_fusion.py` | in doc | not-started | |

@@ -25,8 +25,12 @@ Design *history* (immutable) lives in `docs/superpowers/specs/`.
 1. **Respect 🔒 locked docs.** Changes need user sign-off + a new `05-DECISIONS-LOCKED.md` entry.
 2. **The API contract and data model are binding.** Conform code to them; if one looks wrong, stop
    and raise it — don't silently diverge.
-3. **Learning layer is mandatory.** Every 📚 task ships a concept doc + runnable script + self-quiz
-   and is logged in `LEARNING-LOG.md`. No log entry = not done.
+3. **Learning layer is mandatory (repeatable pattern).** Any task that touches a concept ships a
+   concept doc (copy `docs/learn/_TEMPLATE.md`) + a runnable script (copy `learn/_template.py`,
+   runs via `uv run python learn/NN_<slug>.py`) + a self-quiz, and a `done` row in
+   `docs/final-build-plan/LEARNING-LOG.md`. The pattern is defined once in LEARNING-LOG → "The
+   repeatable pattern"; follow it every time. No artifacts + log row = task not done.
+   Reference example: A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 4. **Branch + PR per slice.** Keep `main` presentable (the repo goes public after Slice A).
 5. **Verify honestly.** State what ran vs. N/A; never round "renders" up to "verified".
 
