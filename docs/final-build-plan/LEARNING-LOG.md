@@ -25,11 +25,14 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Concept | Task | Doc | Script | Self-quiz | Status | Takeaway |
 |---|---|---|---|---|---|---|
 | Tooling & skeleton (uv, pydantic-settings, FastAPI) | A1 | `docs/learn/00-tooling-and-skeleton.md` | `learn/00_config_demo.py` | in doc | **done** | Config is a typed, cached, server-side boundary that fails loudly on bad env vars. |
-| Embeddings & dimensions | A3 | `docs/learn/01-embeddings.md` | `learn/01_embeddings.py` | in doc | not-started | |
-| BM25 / sparse vectors | A4 | `docs/learn/02-hybrid-retrieval.md` | `learn/02_bm25_sparse.py` | in doc | not-started | |
-| Hybrid fusion & normalization | A6 | `docs/learn/02-hybrid-retrieval.md` | `learn/03_hybrid_fusion.py` | in doc | not-started | |
-| Blended confidence (v0) | A8 | `docs/learn/03-confidence-v0.md` | — | in doc | not-started | |
+| API contract & validation (contract-first Pydantic) | A2 | `docs/learn/01-api-contract-and-validation.md` | `learn/01_schemas_demo.py` | in doc | **done** | Typed models first → validation + 422 for free; reserved-field envelope grows without breaking callers. |
+| Embeddings & dimensions | A3 | `docs/learn/02-embeddings.md` | `learn/02_embeddings.py` | in doc | not-started | |
+| BM25 / sparse vectors | A4 | `docs/learn/03-bm25-sparse.md` | `learn/03_bm25_sparse.py` | in doc | not-started | |
+| Hybrid fusion & normalization | A6 | `docs/learn/04-hybrid-fusion.md` | `learn/04_hybrid_fusion.py` | in doc | not-started | |
+| Blended confidence (v0) | A8 | `docs/learn/05-confidence-v0.md` | `learn/05_confidence_v0.py` | in doc | not-started | |
 | README / run-it-yourself | A10 | top-level `README.md` | — | — | not-started | |
+
+> NN is assigned in artifact-creation order (A1→00, A2→01, …); doc and script share the same NN.
 
 ## Slice B (seed — expand when started)
 | Concept | Doc | Status |
