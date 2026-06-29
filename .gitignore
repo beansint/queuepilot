@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Data (large / generated)
+data/raw/
+data/*.csv
+*.parquet
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
