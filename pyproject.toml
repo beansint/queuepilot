@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "google-genai>=2.10.0",
     "pinecone-text>=0.11.0",
+    "pinecone>=9.1.0",
 ]
 
 [dependency-groups]
@@ -40,9 +41,12 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-# pinecone-text ships no type stubs; treat all imports from it as Any.
-module = ["pinecone_text", "pinecone_text.*"]
+# pinecone-text / pinecone ship no type stubs; treat their imports as Any.
+module = ["pinecone_text", "pinecone_text.*", "pinecone", "pinecone.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: live external-service tests (gated by QUEUEPILOT_RUN_INTEGRATION=1)",
+]
