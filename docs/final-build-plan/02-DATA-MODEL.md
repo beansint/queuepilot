@@ -19,8 +19,9 @@ class TicketRecord(BaseModel):
 
 ## Pinecone index spec
 - **One index**, sparse-dense, metric **dotproduct** (required for hybrid).
-- **Dense vector:** Gemini embedding, model `gemini-embedding-001`, dimension **768** (Matryoshka
-  `output_dimensionality=768`, pinned at A3). Do not change without a full Pinecone re-index.
+- **Dense vector:** Voyage `voyage-3.5-lite`, dimension **1024** (registry-swappable; Gemini
+  `gemini-embedding-001` @ 768 dims is a drop-in — see D11). Do not change without a full
+  Pinecone re-index.
 - **Sparse vector:** BM25 `{indices, values}` from `pinecone-text`.
 - **Metadata stored per record:**
   ```json

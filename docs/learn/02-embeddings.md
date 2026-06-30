@@ -30,30 +30,51 @@ orthogonal, −1.0 = opposite).  It is the standard metric when vectors may be s
 
 | Where | What |
 |---|---|
-| `app/providers/embeddings.py` | `Embedder` protocol + `GeminiEmbedder` (calls `gemini-embedding-001` via google-genai SDK) |
-| `app/config.py` | `embed_dim: int = 768` — pinned constant |
-| `docs/final-build-plan/02-DATA-MODEL.md` | Pinecone index spec records model + 768 |
-| `.env` / `.env.example` | `EMBED_DIM=768` |
+| `app/providers/embeddings.py` | `Embedder` protocol + `VoyageEmbedder` (default) + `GeminiEmbedder` (drop-in) + provider registry |
+| `app/config.py` | `embed_dim: int = 1024`, `embedding_provider: str = "voyage"` |
+| `docs/final-build-plan/02-DATA-MODEL.md` | Pinecone index spec — Voyage, 1024 dims, registry-swappable |
+| `.env` / `.env.example` | `EMBEDDING_PROVIDER=voyage`, `EMBED_DIM=1024` |
 
-**Ingest path:** `data/ingest.py` → `GeminiEmbedder.embed_documents(texts)` → 768-float dense
+**Ingest path:** `data/ingest.py` → `get_embedder().embed_documents(texts)` → 1024-float dense
 vector per ticket → upserted alongside a BM25 sparse vector into one Pinecone sparse-dense index.
 
-**Query path:** `GeminiEmbedder.embed_query(text)` → 768-float query vector → fed to Pinecone
+**Query path:** `get_embedder().embed_query(text)` → 1024-float query vector → fed to Pinecone
 hybrid query together with a BM25 sparse query vector.
 
-The `Embedder` *protocol* means retrieval code never imports `GeminiEmbedder` directly — only the
-protocol type, so a future swap (e.g. Cohere, OpenAI) touches only `get_embedder()`.
+### Provider registry
+
+The `Embedder` *protocol* defines the interface; a registry dict maps provider names to classes:
+
+```python
+_PROVIDERS = {"voyage": VoyageEmbedder, "gemini": GeminiEmbedder}
+```
+
+`get_embedder()` reads `settings.embedding_provider`, looks up the class, constructs it with the
+matching API key, and returns it.  `EMBED_DIM` is resolved at import time from the active
+provider's class attribute:
+
+```python
+EMBED_DIM: int = _PROVIDERS[get_settings().embedding_provider].DIM  # 1024 for voyage
+```
+
+This single integer is the source of truth imported by `pinecone_store.ensure_index`, so changing
+`EMBEDDING_PROVIDER` in `.env` automatically propagates the correct index width.  To add a third
+provider (e.g. OpenAI `text-embedding-3-small`, 1536 dims): (1) implement the class with
+`DIM = 1536` and `embed_documents` / `embed_query`, (2) add it to `_PROVIDERS` and
+`_PROVIDER_KEY_ATTRS`, (3) update `app/config.py` with the new key, (4) recreate the Pinecone
+index if the dim changes.  Zero changes to retrieval or ingest code.
 
 ## 3. Why this way
 
-**Why Gemini `gemini-embedding-001`?**
-Stack-locked in `docs/final-build-plan/01-TECH-STACK-LOCKED.md`.  Gemini is already the chat LLM
-provider; reusing the same vendor reduces API surface and key management complexity.
+**Why Voyage `voyage-3.5-lite` as the default? (D11)**
+Voyage gives 200 M free tokens per month.  Our corpus is ~0.35 M tokens, so ingest costs $0 with
+no rate-limit throttle.  Gemini `gemini-embedding-001` is still a registry drop-in — switching
+requires only `EMBEDDING_PROVIDER=gemini` in `.env` plus a full re-index.
 
-**Why 768 dims?**
-768 is the Matryoshka "sweet spot" for `gemini-embedding-001`: sufficient semantic richness for
-customer-support ticket retrieval, small enough that Pinecone storage costs stay low.  Going higher
-(e.g. 1536) would increase cost without meaningful retrieval quality improvement at ~3 k corpus size.
+**Why 1024 dims?**
+`voyage-3.5-lite` outputs fixed 1024-dimensional vectors (not Matryoshka), giving good semantic
+richness for customer-support retrieval at a modest storage cost.  Pinecone's free tier handles
+~3 k × 1024-float records comfortably.
 
 **Why dotproduct, not cosine?**
 Pinecone requires `metric="dotproduct"` on sparse-dense indexes so that the sparse (BM25) and dense
@@ -73,23 +94,23 @@ uv run python learn/02_embeddings.py
 
 **Expected output (approximately):**
 ```
-== A3: Gemini embeddings ==
+== A3: Voyage embeddings (voyage-3.5-lite) ==
 
-Model : gemini-embedding-001
-Dim   : 768
+Model : voyage-3.5-lite
+Dim   : 1024
 
 Text A: "My printer is offline and won't connect."
 Text B: "The printer stopped working and I can't print anything."
 Text C: "I need help booking a flight to Tokyo."
 
-Vector length A: 768  ✓
-Vector length B: 768  ✓
-Vector length C: 768  ✓
+Vector length A: 1024  ✓
+Vector length B: 1024  ✓
+Vector length C: 1024  ✓
 
 Pairwise cosine similarities:
-  A vs B (similar topic):    0.87  ← high: both describe a printer problem
-  A vs C (different topic):  0.62  ← low: printer vs. travel
-  B vs C (different topic):  0.60  ← low: printer vs. travel
+  A vs B (similar topic):    ~0.90  ← high: both describe a printer problem
+  A vs C (different topic):  ~0.60  ← low: printer vs. travel
+  B vs C (different topic):  ~0.58  ← low: printer vs. travel
 ```
 
 The higher similarity between A and B (same topic) vs. A/C or B/C (different topic) proves the
@@ -125,6 +146,6 @@ embedding captures *meaning*, not just word overlap.
 ## 6. Takeaway
 
 Pinning the embedding dimension at ingest time is irreversible: every byte of the Pinecone index is
-shaped around it, so choosing the right model + dim once (768, `gemini-embedding-001`) is cheaper
-than a re-index later — and the Matryoshka property means we can always go smaller, never bigger,
-without a rebuild.
+shaped around it, so choosing the right model + dim once (1024, `voyage-3.5-lite`) is cheaper
+than a re-index later.  The provider registry means you can prove provider-agnosticism in an
+interview without rebuilding the index — just point to the `_PROVIDERS` dict and `EMBED_DIM` chain.

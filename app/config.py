@@ -33,10 +33,14 @@ class Settings(BaseSettings):
 
     # --- Providers (server-side only; required from A3 onward) ---
     gemini_api_key: str | None = None
+    voyage_api_key: str | None = None
     pinecone_api_key: str | None = None
     pinecone_index: str = "queuepilot"
     pinecone_cloud: str = "aws"
     pinecone_region: str = "us-east-1"
+
+    # Embedding provider registry (D11; default voyage, Gemini a drop-in)
+    embedding_provider: str = "voyage"
 
     # Optional chat-LLM provider registry keys (used from Slice B)
     openai_api_key: str | None = None
@@ -47,7 +51,8 @@ class Settings(BaseSettings):
     kaggle_key: str | None = None
 
     # --- Retrieval ---
-    embed_dim: int = 768  # Pinned at A3: gemini-embedding-001, Matryoshka 768-dim
+    # Active provider dim: voyage-3.5-lite @ 1024 (D11); change triggers full re-index
+    embed_dim: int = 1024
     corpus_cap: int = 3000
     hybrid_alpha: float = 0.5
 

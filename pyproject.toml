@@ -12,6 +12,7 @@ dependencies = [
     "pinecone-text>=0.11.0",
     "pinecone>=9.1.0",
     "kagglehub>=1.0.2",
+    "voyageai>=0.4.1",
 ]
 
 [dependency-groups]
@@ -49,6 +50,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 # kagglehub ships no type stubs.
 module = ["kagglehub", "kagglehub.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# voyageai ships no type stubs.
+module = ["voyageai", "voyageai.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

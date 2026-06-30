@@ -20,10 +20,12 @@ Bus is the one "essential" left unchecked — accepted trade-off.
 **Why:** current Pinecone-recommended approach (verified against live docs); genuine hybrid checks
 the "hybrid retrieval" gap. Requires query-time score normalization.
 
-### D3 — Dense = Gemini, Sparse = BM25 (`pinecone-text`)
+### D3 — Dense = Gemini, Sparse = BM25 (`pinecone-text`) *(superseded by D11 for the default provider)*
 **Choice:** Gemini dense embeddings + locally-generated BM25 sparse.
 **Why:** low cost; Gemini gives only dense, so BM25 supplies the sparse half. Dimension is fixed at
 first index creation (see `02`).
+*Note: D11 switches the default dense provider to Voyage `voyage-3.5-lite` (1024 dims). Gemini
+remains a registry drop-in via `EMBEDDING_PROVIDER=gemini`.*
 
 ### D4 — Swappable LLM provider registry (OpenAI a drop-in)
 **Choice:** small provider abstraction defaulting to a cheap/fast model; OpenAI selectable.
@@ -59,3 +61,15 @@ flagship's history.
 ### D10 — Deploy target: Docker → Render
 **Choice:** Dockerized FastAPI on Render, same app serves UI + API.
 **Why:** simplest demo-link path; deployment is part of the portfolio story.
+
+### D11 — Embeddings provider: Voyage `voyage-3.5-lite` (1024 dims) behind a swappable registry (**supersedes D3**)
+**Date:** 2026-06-30.
+**Choice:** Default embedding provider is Voyage `voyage-3.5-lite` at 1024 dims, selected via
+`EMBEDDING_PROVIDER=voyage`. Provider is resolved at runtime through a registry
+(`_PROVIDERS` dict in `app/providers/embeddings.py`); Gemini `gemini-embedding-001` (768 dims)
+remains a verified drop-in (`EMBEDDING_PROVIDER=gemini`).
+**Why:** Voyage gives **200 M free tokens** per month — our ~0.35 M-token corpus ingests at $0
+with no rate-limit grind. The registry design keeps OpenAI / Gemini as provable drop-ins, which
+covers the job description's OpenAI mention without wiring it as the default. `EMBED_DIM` resolves
+to the active provider's dimension at import time so `pinecone_store.ensure_index` always asserts
+the right index width.
