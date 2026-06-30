@@ -22,3 +22,6 @@ data/*.csv
 .DS_Store
 .idea/
 .vscode/
+
+# Generated retrieval artifacts (BM25 params, etc.)
+data/artifacts/
