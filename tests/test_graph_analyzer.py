@@ -1,0 +1,264 @@
+"""B10/B11 — offline unit tests for GraphAnalyzer (no network, no LLM calls).
+
+Covers:
+  * Answer-path: graph returns a full TicketState → AnalyzeResponse mapping is correct
+    for all fields including the now-populated Slice-B fields.
+  * Clarify/escalate path: verify clarification / escalate / suggested_reply mapping.
+  * Fallback path: graph.invoke raises → GraphAnalyzer falls back to Slice A Analyzer
+    and still returns a valid AnalyzeResponse.
+  * Confidence clamping: graph returns out-of-range confidence → clamped to [0, 1].
+  * similar_tickets ordering: mapped list preserves the neighbor order (descending score).
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.analyze.graph_analyzer import GraphAnalyzer
+from app.retrieval.pinecone_store import Neighbor
+from app.schemas import AnalyzeResponse
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_neighbors(n: int = 3) -> list[Neighbor]:
+    """Return *n* Neighbor objects in descending score order."""
+    return [
+        Neighbor(
+            score=round(0.9 - i * 0.1, 1),
+            queue="IT Support",
+            priority="high",
+            type="Incident",
+            snippet=f"snippet {i}",
+        )
+        for i in range(n)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Answer-path
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_answer_path_fields() -> None:
+    """Full TicketState with decision='answer' → all fields mapped correctly."""
+    neighbors = _make_neighbors(3)
+
+    canned_state: dict[str, Any] = {
+        "text": "my printer is offline",
+        "neighbors": neighbors,
+        "category": "Incident",
+        "queue": "IT Support",
+        "priority": "high",
+        "sentiment": {"frustration": 0.2, "negativity": 0.1},
+        "missing_info": [],
+        "sla_risk": 0.15,
+        "confidence": 0.82,
+        "decision": "answer",
+        "escalate": False,
+        "clarification": [],
+        "suggested_reply": "Please restart the print spooler service.",
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("my printer is offline")
+
+    assert isinstance(result, AnalyzeResponse)
+    assert result.category == "Incident"
+    assert result.queue == "IT Support"
+    assert result.priority == "high"
+    assert result.confidence == pytest.approx(0.82)
+    assert 0.0 <= result.confidence <= 1.0
+    assert result.sentiment == {"frustration": 0.2, "negativity": 0.1}
+    assert result.sla_risk == pytest.approx(0.15)
+    assert result.escalate is False
+    # clarification is an empty list → normalised to None
+    assert result.clarification is None
+    assert result.suggested_reply == "Please restart the print spooler service."
+    assert result.trace is None
+
+
+def test_analyze_answer_path_similar_tickets_order() -> None:
+    """similar_tickets are in descending score order matching neighbor input order."""
+    neighbors = _make_neighbors(3)
+    canned_state: dict[str, Any] = {
+        "text": "test",
+        "neighbors": neighbors,
+        "category": None,
+        "queue": None,
+        "priority": None,
+        "sentiment": None,
+        "missing_info": [],
+        "sla_risk": None,
+        "confidence": 0.5,
+        "decision": "answer",
+        "escalate": False,
+        "clarification": [],
+        "suggested_reply": None,
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("test")
+
+    assert len(result.similar_tickets) == 3
+    scores = [t.score for t in result.similar_tickets]
+    assert scores == sorted(scores, reverse=True), "similar_tickets must be descending by score"
+    assert result.similar_tickets[0].score == pytest.approx(0.9)
+
+
+# ---------------------------------------------------------------------------
+# Clarify-path
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_clarify_path() -> None:
+    """TicketState with decision='clarify' → clarification populated, escalate=False."""
+    neighbors = _make_neighbors(2)
+    canned_state: dict[str, Any] = {
+        "text": "something is broken",
+        "neighbors": neighbors,
+        "category": "Incident",
+        "queue": "IT Support",
+        "priority": "medium",
+        "sentiment": {"frustration": 0.5, "negativity": 0.4},
+        "missing_info": ["no error message", "no steps to reproduce"],
+        "sla_risk": 0.3,
+        "confidence": 0.55,
+        "decision": "clarify",
+        "escalate": False,
+        "clarification": [
+            "Could you share the exact error message you see?",
+            "What steps did you follow before the issue occurred?",
+        ],
+        "suggested_reply": None,
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("something is broken")
+
+    assert result.escalate is False
+    assert isinstance(result.clarification, list)
+    assert len(result.clarification) == 2
+    assert "error message" in result.clarification[0]
+    assert result.suggested_reply is None
+
+
+# ---------------------------------------------------------------------------
+# Escalate-path
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_escalate_path() -> None:
+    """TicketState with decision='escalate' → escalate=True, clarification=None."""
+    canned_state: dict[str, Any] = {
+        "text": "urgent server down",
+        "neighbors": _make_neighbors(1),
+        "category": None,
+        "queue": None,
+        "priority": "critical",
+        "sentiment": {"frustration": 0.9, "negativity": 0.8},
+        "missing_info": [],
+        "sla_risk": 0.95,
+        "confidence": 0.2,
+        "decision": "escalate",
+        "escalate": True,
+        # clarification key absent (escalate branch skips the clarify node)
+        "suggested_reply": None,
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("urgent server down")
+
+    assert result.escalate is True
+    assert result.clarification is None
+    assert result.suggested_reply is None
+
+
+# ---------------------------------------------------------------------------
+# Fallback-to-baseline path
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_fallback_on_graph_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When graph.invoke raises, GraphAnalyzer falls back to Slice A Analyzer."""
+    fallback_response = AnalyzeResponse(
+        category="fallback-category",
+        queue="fallback-queue",
+        priority="low",
+        confidence=0.3,
+        similar_tickets=[],
+    )
+
+    # Fake Analyzer.from_settings() so the fallback doesn't hit the network.
+    class _FakeAnalyzer:
+        def analyze(self, text: str) -> AnalyzeResponse:
+            return fallback_response
+
+    monkeypatch.setattr(
+        "app.analyze.graph_analyzer.Analyzer.from_settings",
+        staticmethod(lambda: _FakeAnalyzer()),
+    )
+
+    # Graph whose invoke always raises.
+    fake_graph = MagicMock()
+    fake_graph.invoke.side_effect = RuntimeError("Groq is down")
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("cannot connect to vpn")
+
+    # Must return a valid AnalyzeResponse (not re-raise).
+    assert isinstance(result, AnalyzeResponse)
+    assert result.category == "fallback-category"
+    assert result.queue == "fallback-queue"
+    assert 0.0 <= result.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Confidence clamping
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_confidence_clamped_above_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Out-of-range confidence > 1.0 from graph is clamped to 1.0."""
+    canned_state: dict[str, Any] = {
+        "text": "test",
+        "neighbors": [],
+        "confidence": 1.5,  # bug in scoring node
+        "decision": "answer",
+        "escalate": False,
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("test")
+    assert result.confidence <= 1.0
+
+
+def test_analyze_confidence_clamped_below_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Out-of-range confidence < 0.0 from graph is clamped to 0.0."""
+    canned_state: dict[str, Any] = {
+        "text": "test",
+        "neighbors": [],
+        "confidence": -0.5,  # bug in scoring node
+        "decision": "answer",
+        "escalate": False,
+    }
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = canned_state
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("test")
+    assert result.confidence >= 0.0
