@@ -155,11 +155,26 @@ def main(argv: list[str] | None = None) -> None:
         default="tickets",
         help="Pinecone namespace to upsert into (default: %(default)s)",
     )
+    parser.add_argument(
+        "--rpm",
+        type=float,
+        default=_TARGET_RPM,
+        help="Target embeds/minute throttle. Use a high value (e.g. 5000) on paid tier "
+        "to disable throttling (default: %(default)s, sized for the free tier).",
+    )
+    parser.add_argument(
+        "--batch",
+        type=int,
+        default=_EMBED_BATCH,
+        help="Texts per embed call (default: %(default)s)",
+    )
     args = parser.parse_args(argv)
 
     csv_path = Path(args.csv)
     cap: int = args.cap
     namespace: str = args.namespace
+    batch_size: int = args.batch
+    target_rpm: float = args.rpm
 
     # ------------------------------------------------------------------
     # Step 1: Normalize
@@ -207,13 +222,16 @@ def main(argv: list[str] | None = None) -> None:
     # buffering all vectors in memory and writing once at the very end.
     # ------------------------------------------------------------------
     total = len(capped)
-    print(f"Streaming {total} records → namespace='{namespace}' (batch={_EMBED_BATCH}) ...")
+    print(
+        f"Streaming {total} records → namespace='{namespace}' "
+        f"(batch={batch_size}, rpm={target_rpm}) ..."
+    )
     embedded = 0
     upserted = 0
     # seconds/batch needed to hold the target embeds-per-minute rate
-    throttle_s = _EMBED_BATCH / _TARGET_RPM * 60.0
-    for start in range(0, total, _EMBED_BATCH):
-        batch = capped[start : start + _EMBED_BATCH]
+    throttle_s = batch_size / target_rpm * 60.0
+    for start in range(0, total, batch_size):
+        batch = capped[start : start + batch_size]
         batch_texts = [r.text for r in batch]
         t0 = time.monotonic()
         dense = _embed_batch_with_retry(embedder, batch_texts)
