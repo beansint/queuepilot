@@ -11,6 +11,7 @@ dependencies = [
     "google-genai>=2.10.0",
     "pinecone-text>=0.11.0",
     "pinecone>=9.1.0",
+    "kagglehub>=1.0.2",
 ]
 
 [dependency-groups]

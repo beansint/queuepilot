@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     groq_api_key: str | None = None
 
+    # --- Data ingest (Kaggle API; used by data/download.py, task A7) ---
+    kaggle_username: str | None = None
+    kaggle_key: str | None = None
+
     # --- Retrieval ---
     embed_dim: int = 768  # Pinned at A3: gemini-embedding-001, Matryoshka 768-dim
     corpus_cap: int = 3000
