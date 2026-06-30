@@ -73,3 +73,12 @@ with no rate-limit grind. The registry design keeps OpenAI / Gemini as provable 
 keeps OpenAI a provable drop-in without wiring it as the default. `EMBED_DIM` resolves
 to the active provider's dimension at import time so `pinecone_store.ensure_index` always asserts
 the right index width.
+
+### D12 — Chat LLM for Slice B: Groq `llama-3.3-70b-versatile` behind a registry
+**Date:** 2026-06-30.
+**Choice:** Default chat (generative) model is Groq `llama-3.3-70b-versatile`, selected via
+`CHAT_PROVIDER=groq`, behind a `ChatModel` registry (mirrors the embedding registry, D4). Gemini and
+OpenAI (`gpt-oss-20b`, gpt-4o-mini) remain drop-ins.
+**Considered:** Gemini Flash-Lite (reuse key), OpenAI gpt-4o-mini (job-box).
+**Why:** free + fastest inference (Groq LPU) for a demo; strong at the classification + short
+generation the workflow needs; registry keeps the others provable drop-ins. Embeddings stay on Voyage.
