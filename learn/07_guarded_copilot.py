@@ -39,26 +39,12 @@ def main() -> None:
 
     cases: list[tuple[str, float, float, list[str]]] = [
         # (label, confidence, sla_risk, missing_info)
-        (
-            "High conf, no missing",
-            0.85, 0.35, [],
-        ),
-        (
-            "Missing info, mid conf",
-            0.65, 0.33, ["no error code"],
-        ),
-        (
-            "Low confidence (diverse queue)",
-            0.32, 0.16, [],
-        ),
-        (
-            "High SLA risk (high priority + angry)",
-            0.91, 0.77, [],
-        ),
-        (
-            "Low conf + missing info",
-            0.25, 0.65, ["no account id", "no steps"],
-        ),
+        ("Confident + complete", 0.85, 0.35, []),
+        ("Mid confidence + missing info", 0.58, 0.40, ["no error code"]),
+        ("Low confidence (diverse queues)", 0.32, 0.20, []),
+        ("Extreme SLA risk + not confident", 0.55, 0.92, []),
+        ("Confident despite high SLA risk", 0.88, 0.95, []),
+        ("Low conf + missing (escalate beats clarify)", 0.25, 0.60, ["no account id"]),
     ]
 
     for label, conf, risk, missing in cases:
