@@ -16,6 +16,7 @@ This is the baked-in foundation — not optional, not only for "AI" tasks. Each 
 A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 
 ## How to use
+- **Run every demo:** `uv run python learn/run_all.py` (or one at a time: `uv run python learn/NN_*.py`).
 - One row per concept. Fill `doc`, `script`, `self-quiz` when each exists.
 - `Status`: `not-started` → `in-progress` → `done`.
 - Add a short `Takeaway` once learned — the thing you'd explain to a teammate.
