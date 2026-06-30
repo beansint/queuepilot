@@ -8,10 +8,14 @@
   (queue, priority, type) plus agent answers — so it serves as a retrieval corpus AND a benchmark for
   QueuePilot's outputs.
 
-## License — ⚠ confirm before the repo goes public
-Verify the exact license on the Kaggle page before flipping `queuepilot` public (end of Slice A).
-Regardless of license, **we do not commit the raw data** — only this documentation + a reproducible
-download script. `data/raw/` and `*.csv` are gitignored.
+## License — CC BY 4.0 (confirmed)
+**Attribution 4.0 International (CC BY 4.0)** — free to use and redistribute *with attribution*.
+Safe for the public portfolio repo. We still **do not commit the raw data** — only this documentation
++ a reproducible download script (`data/raw/` and `*.csv` are gitignored).
+
+**Required attribution** (keep in README + this doc):
+> "Customer IT Support — Multilingual Ticket Dataset" by tobiasbueck (Kaggle), licensed under
+> CC BY 4.0. https://www.kaggle.com/datasets/tobiasbueck/multilingual-customer-support-tickets
 
 ## How to obtain it (reproducible)
 1. Get a Kaggle API token: https://www.kaggle.com/settings → API → **Create New Token**
@@ -21,14 +25,24 @@ download script. `data/raw/` and `*.csv` are gitignored.
 
 Fallback (no API): download the zip from the dataset page, unzip, and drop the CSV(s) into `data/raw/`.
 
-## Schema — confirmed at ingest, isolated in `data/normalize.py`
-The dataset ships multiple CSV "version" files and a multilingual set of columns. The exact column
-names are **confirmed against the downloaded CSV during A7** and mapped in one place
-(`data/normalize.py`) so a schema change touches a single file. Expected fields (to verify on download):
-text subject + body, an agent `answer`, and labels for `type`, `queue`, `priority`, plus a `language`
-column and several `tag` columns.
+## Schema — CONFIRMED (2026-06-30)
+The download ships 5 CSVs. **Primary source: `aa_dataset-tickets-multi-lang-5-2-50-version.csv`**
+(28,587 rows; most English content). Columns (16):
 
-→ See `02-DATA-MODEL.md` for the normalized `TicketRecord` shape we map into.
+```
+subject, body, answer, type, queue, priority, language, version, tag_1 .. tag_8
+```
+(The `dataset-tickets-multi-lang-4-20k.csv` is the same minus `version`, 20k rows; German-only
+normalized files are ignored for v1.)
+
+- **language:** `en` (16,338) / `de` (12,249) → v1 keeps **en** only.
+- **queue** (label) e.g. "Technical Support", "Customer Service".
+- **priority** (label): `high` / `medium` / `low` (lowercase).
+- **type** (label): e.g. "Incident", "Request".
+- `tag_1..tag_8` are sparse free-text tags (often blank); not required for v1.
+
+`data/normalize.py` isolates this mapping into the normalized `TicketRecord` (`02-DATA-MODEL.md`):
+`subject + body → text`, keep `queue/priority/type`, `answer → reply corpus`, drop non-`en` rows.
 
 ## Our handling (v1)
 - **Language filter:** keep **English** only (BM25 is fit for English; `02-DATA-MODEL.md`).
