@@ -37,8 +37,11 @@ _CSV_DEFAULT = (
     _PROJECT_ROOT / "data" / "raw" / "aa_dataset-tickets-multi-lang-5-2-50-version.csv"
 )
 _BM25_ARTIFACT = _PROJECT_ROOT / "data" / "artifacts" / "bm25_params.json"
-_EMBED_BATCH = 100  # Gemini API limit on contents per call
-_RATE_LIMIT_RETRIES = 8  # attempts per batch when the free-tier quota (≈100/min) is hit
+# Gemini free tier counts quota PER TEXT (~100 embeds/min), so batch size doesn't reduce
+# consumption — only pacing does. Use small bursts + a proactive throttle that stays under the cap.
+_EMBED_BATCH = 25  # texts per embed call (small bursts keep the sliding-window count safe)
+_TARGET_RPM = 80.0  # proactive cap: stay comfortably under the free-tier ~100/min
+_RATE_LIMIT_RETRIES = 8  # reactive safety net if a 429 still slips through
 _DEFAULT_BACKOFF_S = 35.0  # fallback sleep when the 429 carries no explicit retry delay
 
 
@@ -207,15 +210,22 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Streaming {total} records → namespace='{namespace}' (batch={_EMBED_BATCH}) ...")
     embedded = 0
     upserted = 0
+    # seconds/batch needed to hold the target embeds-per-minute rate
+    throttle_s = _EMBED_BATCH / _TARGET_RPM * 60.0
     for start in range(0, total, _EMBED_BATCH):
         batch = capped[start : start + _EMBED_BATCH]
         batch_texts = [r.text for r in batch]
+        t0 = time.monotonic()
         dense = _embed_batch_with_retry(embedder, batch_texts)
         sparse = encoder.encode_documents(batch_texts)
         records = _build_upsert_records(batch, dense, sparse)
         upserted += store.upsert(records, namespace=namespace)
         embedded += len(batch)
         print(f"  {embedded}/{total} embedded + upserted", flush=True)
+        # Proactively pace to stay under the free-tier limit (skip the wait on the final batch).
+        if embedded < total:
+            elapsed = time.monotonic() - t0
+            time.sleep(max(0.0, throttle_s - elapsed))
 
     # ------------------------------------------------------------------
     # Step 7: Honest summary
