@@ -190,38 +190,32 @@ def main(argv: list[str] | None = None) -> None:
     print(f"BM25 artifact saved → {_BM25_ARTIFACT}")
 
     # ------------------------------------------------------------------
-    # Step 3: Dense-embed in batches of 100
-    # ------------------------------------------------------------------
-    print(f"Dense-embedding {len(texts)} texts in batches of {_EMBED_BATCH} ...")
-    embedder = get_embedder()
-    dense_vecs: list[list[float]] = []
-    for start in range(0, len(texts), _EMBED_BATCH):
-        chunk = texts[start : start + _EMBED_BATCH]
-        dense_vecs.extend(_embed_batch_with_retry(embedder, chunk))
-        done = min(start + _EMBED_BATCH, len(texts))
-        print(f"  {done}/{len(texts)} embedded", end="\r", flush=True)
-    print(f"Dense embedding complete: {len(dense_vecs)} vectors        ")
-
-    # ------------------------------------------------------------------
-    # Step 4: Sparse-encode
-    # ------------------------------------------------------------------
-    print("Sparse-encoding ...")
-    sparse_vecs = encoder.encode_documents(texts)
-    print(f"Sparse encoding complete: {len(sparse_vecs)} vectors")
-
-    # ------------------------------------------------------------------
-    # Step 5: Build UpsertRecords (pure — no network)
-    # ------------------------------------------------------------------
-    upsert_records = _build_upsert_records(capped, dense_vecs, sparse_vecs)
-
-    # ------------------------------------------------------------------
-    # Step 6: Ensure Pinecone index and upsert
+    # Step 3: Connect to Pinecone BEFORE the loop so we upsert incrementally.
     # ------------------------------------------------------------------
     print("Connecting to Pinecone ...")
+    embedder = get_embedder()
     store = PineconeStore()
     store.ensure_index()
-    print(f"Upserting {len(upsert_records)} records → namespace='{namespace}' ...")
-    upserted = store.upsert(upsert_records, namespace=namespace)
+
+    # ------------------------------------------------------------------
+    # Step 4: Stream — embed + sparse-encode + upsert EACH batch immediately.
+    # Incremental upserts make the ingest durable (a crash keeps everything
+    # already written) and observable (Pinecone fills gradually), instead of
+    # buffering all vectors in memory and writing once at the very end.
+    # ------------------------------------------------------------------
+    total = len(capped)
+    print(f"Streaming {total} records → namespace='{namespace}' (batch={_EMBED_BATCH}) ...")
+    embedded = 0
+    upserted = 0
+    for start in range(0, total, _EMBED_BATCH):
+        batch = capped[start : start + _EMBED_BATCH]
+        batch_texts = [r.text for r in batch]
+        dense = _embed_batch_with_retry(embedder, batch_texts)
+        sparse = encoder.encode_documents(batch_texts)
+        records = _build_upsert_records(batch, dense, sparse)
+        upserted += store.upsert(records, namespace=namespace)
+        embedded += len(batch)
+        print(f"  {embedded}/{total} embedded + upserted", flush=True)
 
     # ------------------------------------------------------------------
     # Step 7: Honest summary
@@ -235,7 +229,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"  dropped non-en: {stats['dropped_non_en']}")
     print(f"  dropped empty:  {stats['dropped_empty']}")
     print(f"  capped at:      {cap}")
-    print(f"  embedded:       {len(dense_vecs)}")
+    print(f"  embedded:       {embedded}")
     print(f"  upserted:       {upserted}")
     print("======================")
 

@@ -32,11 +32,19 @@ exactly the capped set ensures the stored sparse vectors and the query-time enco
 same vocabulary. This is why `encoder.save()` runs immediately after `encoder.fit(capped_texts)`
 and before any upsert.
 
-**Why embedding is batched.** The Gemini embedding API accepts a list of `contents` per call but
-has a per-call limit (~100 texts). Batching in `ingest.py` chunks the `texts` list into slices of
-100 and calls `embed_documents` once per slice, concatenating the results. This is cheaper than
-100 individual API calls (fewer round-trips) and safe within the API's per-call content limit.
-Batching also makes progress reporting straightforward: print a counter after each batch.
+**Why we STREAM batches (embed → upsert per batch), not embed-all-then-upsert.** The Gemini API
+accepts ~100 `contents` per call, so we process the corpus in slices of 100. Crucially, each batch
+is **embedded, sparse-encoded, and upserted to Pinecone immediately** — we do *not* buffer all 3k
+vectors in memory and write once at the end. Two reasons:
+- **Durability** — the free tier embeds only ~100/min, so a full ingest takes ~30 min. If we wrote
+  everything at the end and the process died at vector 2,900, we'd lose *all* the work. Streaming
+  means everything already written stays written; combined with content-hash idempotency, a re-run
+  resumes cheaply.
+- **Observability** — Pinecone's vector count climbs steadily, so you can watch progress instead of
+  staring at a flat graph for 30 minutes wondering if it's stuck.
+
+(The free-tier rate limit is handled by `_embed_batch_with_retry`, which honors the server's
+`retryDelay` on a 429 and retries the same batch rather than crashing the ingest.)
 
 **Self-check:** Why does fitting BM25 on the full 28k corpus (rather than the capped 3k) produce
 misaligned sparse vectors at query time? What property of `sha1(subject + "\n" + body)` guarantees
