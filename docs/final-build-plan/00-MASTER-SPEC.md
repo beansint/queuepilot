@@ -12,10 +12,9 @@ logs the full run for evaluation.
 - **Isn't:** a generic chatbot. It produces operational outputs mapped to a dashboard, not free chat.
 
 ## Why it exists
-Built to (a) close concrete skill gaps for an *AI Developer (LLM & API Focus)* role —
-LangGraph, LangSmith, hybrid retrieval, agent orchestration, Python on the flagship AI artifact —
-and (b) serve as a **learning vehicle**. The learning layer is therefore a core graded requirement,
-not optional polish.
+A portfolio project demonstrating a production-style agentic AI workflow — LangGraph orchestration,
+hybrid retrieval, LangSmith evaluation, agent orchestration, and clean API design — and a
+**learning vehicle**. The learning layer is therefore a core graded requirement, not optional polish.
 
 ## Core outputs (per analyzed ticket)
 - Category
@@ -42,7 +41,7 @@ Help under uncertainty; never overcommit.
 ## Confidence approach
 Blended numeric score from: retrieval quality, classification certainty, route/priority consistency,
 missing-info penalties, escalation-risk penalties, optional low-weight LLM judgment. Explainable and
-tunable for dashboards, debugging, and interviews.
+tunable for dashboards and debugging.
 
 ## Success criteria (by slice)
 - **A:** `/analyze` returns category/queue/priority + hybrid-retrieved neighbors + confidence v0 on
@@ -53,5 +52,5 @@ tunable for dashboards, debugging, and interviews.
 - **E:** Dockerized, deployed to Render, invite-code access + rate limiting.
 
 ## Scope v1 / deferred
-**In:** the five slices above. **Deferred (transferable talking points, not built):** GraphQL,
+**In:** the five slices above. **Deferred (out of scope for v1):** GraphQL,
 Azure / Azure Service Bus, OpenAI-only, voice (ASR/TTS), full auth/user management, multi-tenant SaaS.

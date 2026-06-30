@@ -20,8 +20,7 @@ Changing anything here requires explicit user sign-off + a new entry in `05-DECI
 
 ## Deferred tech (NOT in v1)
 GraphQL · Azure / Azure Service Bus · OpenAI-only · voice (ASR/TTS) · full auth · multi-tenant.
-These map to job "nice-to-haves" / "essential-but-transferable" talking points; building them now
-would dilute the core hiring signal.
+These are out of scope for v1; building them now would dilute the core focus of the project.
 
 ## Hard rules
 - Once the Gemini embedding **dimension** is chosen for the index, it is fixed; changing it forces a

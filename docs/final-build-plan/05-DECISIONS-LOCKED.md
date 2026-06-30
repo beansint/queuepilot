@@ -11,8 +11,8 @@ All decisions below: **2026-06-29**, during the initial brainstorm.
 **Choice:** build the clean FastAPI+LangGraph+Pinecone+LangSmith core; **defer** Azure Service Bus,
 GraphQL, and OpenAI-only wiring.
 **Considered:** max box-coverage (wire Azure + GraphQL + OpenAI); core+Azure-only.
-**Why:** cheapest/cleanest; Azure/GraphQL are framed as transferable in interviews. Azure Service
-Bus is the one "essential" left unchecked — accepted trade-off.
+**Why:** cheapest/cleanest path to a focused v1; Azure and GraphQL are deferred as out-of-scope
+for now — accepted trade-off.
 
 ### D2 — Pinecone single sparse-dense index for hybrid
 **Choice:** one index holding dense+sparse; supply our own vectors.
@@ -30,13 +30,13 @@ remains a registry drop-in via `EMBEDDING_PROVIDER=gemini`.*
 ### D4 — Swappable LLM provider registry (OpenAI a drop-in)
 **Choice:** small provider abstraction defaulting to a cheap/fast model; OpenAI selectable.
 **Considered:** OpenAI-only; Gemini-only.
-**Why:** near-zero cost, demonstrates provider abstraction, AND lets us show OpenAI working (named
-in the job). Not used in Slice A's baseline.
+**Why:** near-zero cost, demonstrates provider abstraction, AND lets us show OpenAI working as a
+selectable drop-in. Not used in Slice A's baseline.
 
 ### D5 — Learning layer is a core graded requirement
 **Choice:** every slice ships all four forms — annotated concept docs, runnable concept scripts,
 checkpoints/self-quiz, and an opt-out in-app `--explain` debug mode (lands in Slice C).
-**Why:** the project is also a learning vehicle for real skill gaps; skipping teaching artifacts
+**Why:** the project is also a learning vehicle; skipping teaching artifacts
 defeats a primary goal.
 
 ### D6 — Spec Slice A fully; roadmap B–E
@@ -70,6 +70,6 @@ flagship's history.
 remains a verified drop-in (`EMBEDDING_PROVIDER=gemini`).
 **Why:** Voyage gives **200 M free tokens** per month — our ~0.35 M-token corpus ingests at $0
 with no rate-limit grind. The registry design keeps OpenAI / Gemini as provable drop-ins, which
-covers the job description's OpenAI mention without wiring it as the default. `EMBED_DIM` resolves
+keeps OpenAI a provable drop-in without wiring it as the default. `EMBED_DIM` resolves
 to the active provider's dimension at import time so `pinecone_store.ensure_index` always asserts
 the right index width.

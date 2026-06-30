@@ -19,7 +19,8 @@ The single source of truth is **`docs/final-build-plan/`**. Read in this order:
 7. `04-BUILD-SEQUENCE.md` — tasks ↔ issues
 8. `LEARNING-LOG.md` — update as you build
 
-Design *history* (immutable) lives in `docs/superpowers/specs/`.
+The canonical docs above are the current source of truth. (Detailed design history is archived
+separately and is not part of this repo.)
 
 ## Non-negotiable rules
 1. **Respect 🔒 locked docs.** Changes need user sign-off + a new `05-DECISIONS-LOCKED.md` entry.

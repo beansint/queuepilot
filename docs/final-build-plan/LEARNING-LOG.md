@@ -18,7 +18,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 ## How to use
 - One row per concept. Fill `doc`, `script`, `self-quiz` when each exists.
 - `Status`: `not-started` → `in-progress` → `done`.
-- Add a short `Takeaway` once learned — the thing you'd say in an interview.
+- Add a short `Takeaway` once learned — the thing you'd explain to a teammate.
 
 ## Slice A
 
@@ -55,4 +55,4 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Building an eval dataset | `docs/learn/09-eval-datasets.md` | not-started |
 
 ## Open questions / things I got stuck on
-_(log friction here as you go — great interview material)_
+_(log friction here as you go — great material to revisit)_

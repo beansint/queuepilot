@@ -24,8 +24,8 @@ new contributor, read this before touching any code.
 | Task order & issue mapping | `04-BUILD-SEQUENCE.md` | |
 | Why a decision was made | `05-DECISIONS-LOCKED.md` | |
 
-Design *history* (the brainstorm narrative) lives in `../superpowers/specs/` and is immutable —
-it records how we got here, not what is current. When current state changes, update THIS directory.
+These canonical docs are the current source of truth — when state changes, update THIS directory.
+(Detailed design history / brainstorm narrative is archived separately and is not part of this repo.)
 
 ## Agent rules (non-negotiable)
 
