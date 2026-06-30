@@ -30,7 +30,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | BM25 / sparse vectors | A4 | `docs/learn/03-bm25-sparse.md` | `learn/03_bm25_sparse.py` | in doc | **done** | BM25 gives the lexical half of hybrid retrieval — rare tokens like error codes get high IDF weight, catching exact-match queries that dense embeddings dilute across all dimensions. |
 | Pinecone sparse-dense store (infra) | A5 | `docs/learn/_infra-A5-pinecone-store.md` | (live integration test) | in note | **done** | One dotproduct index holds dense+sparse; Pinecone metadata can't be null; ensure_index guards EMBED_DIM drift. |
 | Kaggle ingest + normalize (infra) | A7 | `docs/learn/_infra-A7-ingest.md` | (tiny live ingest test) | in note | **done** | Deterministic content-hash ids make re-ingest idempotent; BM25 must be fit on the same capped corpus that gets embedded so vocabulary aligns at query time. |
-| Hybrid fusion & normalization | A6 | `docs/learn/04-hybrid-fusion.md` | `learn/04_hybrid_fusion.py` | in doc | not-started | |
+| Hybrid fusion & normalization | A6 | `docs/learn/04-hybrid-fusion.md` | `learn/04_hybrid_fusion.py` | in doc | **done** | Scaling dense by alpha and sparse by (1-alpha) before the dotproduct query is the fusion — the linear metric means vector scaling is score scaling. |
 | Blended confidence (v0) | A8 | `docs/learn/05-confidence-v0.md` | `learn/05_confidence_v0.py` | in doc | not-started | |
 | README / run-it-yourself | A10 | top-level `README.md` | — | — | not-started | |
 
