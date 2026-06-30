@@ -46,6 +46,11 @@ warn_redundant_casts = true
 module = ["pinecone_text", "pinecone_text.*", "pinecone", "pinecone.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# kagglehub ships no type stubs.
+module = ["kagglehub", "kagglehub.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
