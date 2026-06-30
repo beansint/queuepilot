@@ -12,13 +12,13 @@ An **embedding** is a fixed-length vector of floats that encodes the *meaning* o
 Two texts with similar meanings end up with vectors that point in roughly the same direction in that
 high-dimensional space — even if they share no words in common.
 
-A **dimension** is the length of that vector (e.g. 768 floats).  All vectors in a vector database
+A **dimension** is the length of that vector (e.g. 1024 floats).  All vectors in a vector database
 index must have the same dimension; mixing lengths is a hard schema error.
 
-**Matryoshka Representation Learning (MRL)** trains a single embedding model such that its first
-*N* dimensions (any N from 1 to the full dim) already capture a useful embedding.  This means you
-can trade off index size vs. quality by choosing `output_dimensionality` at embedding time.  We fix
-ours at **768** for a good accuracy / storage balance.
+Some models support **Matryoshka Representation Learning (MRL)** — trained so the first *N*
+dimensions (any N up to the full dim) already capture a useful embedding, letting you trade index
+size vs. quality. We fix `EMBED_DIM` to the active provider's dimension — **1024** for the default
+Voyage `voyage-3.5-lite` (D11; Gemini's `gemini-embedding-001` would be 768).
 
 **Cosine similarity** measures the angle between two vectors (1.0 = identical direction, 0.0 =
 orthogonal, −1.0 = opposite).  It is the standard metric when vectors may be scale-normalized.
@@ -118,10 +118,10 @@ embedding captures *meaning*, not just word overlap.
 
 ## 5. Self-quiz
 
-1. Why can't you mix 768-dim and 1536-dim vectors in the same Pinecone index, even for the same
+1. Why can't you mix 1024-dim and 1536-dim vectors in the same Pinecone index, even for the same
    model?
-2. After we fix `EMBED_DIM=768` and ingest 3 000 tickets, a new Gemini model releases that produces
-   better embeddings at 1024 dims.  What is the minimum set of steps required to adopt it?
+2. After we fix `EMBED_DIM=1024` (Voyage) and ingest 3 000 tickets, you want to switch to a provider
+   that produces 768-dim vectors.  What is the minimum set of steps required to adopt it?
 3. Cosine similarity between two normalized vectors equals their dot product.  When would you
    *prefer* dot product even over cosine as a raw metric?
 
