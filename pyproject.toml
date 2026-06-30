@@ -13,6 +13,8 @@ dependencies = [
     "pinecone>=9.1.0",
     "kagglehub>=1.0.2",
     "voyageai>=0.4.1",
+    "langgraph>=1.2.7",
+    "groq>=1.5.0",
 ]
 
 [dependency-groups]

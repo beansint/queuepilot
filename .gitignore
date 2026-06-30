@@ -25,3 +25,6 @@ data/*.csv
 
 # Generated retrieval artifacts (BM25 params, etc.)
 data/artifacts/
+
+# Claude Code internal worktrees/state
+.claude/

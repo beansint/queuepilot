@@ -36,11 +36,11 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 
 > NN is assigned in artifact-creation order (A1→00, A2→01, …); doc and script share the same NN.
 
-## Slice B (seed — expand when started)
-| Concept | Doc | Status |
-|---|---|---|
-| LangGraph state & transitions | `docs/learn/04-langgraph.md` | not-started |
-| Guarded-copilot pattern (answer/clarify/escalate) | `docs/learn/05-guarded-copilot.md` | not-started |
+## Slice B
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| LangGraph state machines | B1 | `docs/learn/06-langgraph-state.md` | `learn/06_langgraph_state.py` | **done** | A node returns *what changed*; LangGraph merges partials and follows edges — control flow is explicit, inspectable structure. |
+| Guarded-copilot pattern (answer/clarify/escalate) | B8 | `docs/learn/07-guarded-copilot.md` | (pending) | not-started | |
 
 ## Slice C
 | Concept | Doc | Status |

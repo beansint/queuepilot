@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     # Embedding provider registry (D11; default voyage, Gemini a drop-in)
     embedding_provider: str = "voyage"
 
-    # Optional chat-LLM provider registry keys (used from Slice B)
+    # Chat-LLM provider registry (Slice B; default Groq, Gemini/OpenAI drop-ins — D12)
+    chat_provider: str = "groq"
     openai_api_key: str | None = None
     groq_api_key: str | None = None
 
