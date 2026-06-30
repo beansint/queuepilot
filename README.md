@@ -103,16 +103,18 @@ QUEUEPILOT_RUN_INTEGRATION=1 uv run pytest -m integration   # live: real Voyage 
 ## The learning layer
 
 A core part of this project: every concept ships a doc + a standalone runnable script + a self-quiz,
-logged in [`docs/final-build-plan/LEARNING-LOG.md`](docs/final-build-plan/LEARNING-LOG.md). Run any in
-isolation:
+logged in [`docs/final-build-plan/LEARNING-LOG.md`](docs/final-build-plan/LEARNING-LOG.md).
 
 ```bash
+uv run python learn/run_all.py            # run every concept demo, in build order
+# …or one at a time:
 uv run python learn/02_embeddings.py      # embeddings & cosine similarity
-uv run python learn/03_bm25_sparse.py     # BM25 sparse vectors & IDF
 uv run python learn/04_hybrid_fusion.py   # alpha-weighted dense+sparse fusion
-uv run python learn/05_confidence_v0.py   # blended confidence
+uv run python learn/06_langgraph_state.py # LangGraph state merge
+uv run python learn/07_guarded_copilot.py # answer / clarify / escalate routing
 ```
-Concept docs: [`docs/learn/`](docs/learn/).
+Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
+(`02_embeddings.py` makes a live Voyage call; the rest run offline.)
 
 ## Roadmap
 
