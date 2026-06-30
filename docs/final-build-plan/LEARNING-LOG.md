@@ -31,7 +31,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Pinecone sparse-dense store (infra) | A5 | `docs/learn/_infra-A5-pinecone-store.md` | (live integration test) | in note | **done** | One dotproduct index holds dense+sparse; Pinecone metadata can't be null; ensure_index guards EMBED_DIM drift. |
 | Kaggle ingest + normalize (infra) | A7 | `docs/learn/_infra-A7-ingest.md` | (tiny live ingest test) | in note | **done** | Deterministic content-hash ids make re-ingest idempotent; BM25 must be fit on the same capped corpus that gets embedded so vocabulary aligns at query time. |
 | Hybrid fusion & normalization | A6 | `docs/learn/04-hybrid-fusion.md` | `learn/04_hybrid_fusion.py` | in doc | **done** | Scaling dense by alpha and sparse by (1-alpha) before the dotproduct query is the fusion — the linear metric means vector scaling is score scaling. |
-| Blended confidence (v0) | A8 | `docs/learn/05-confidence-v0.md` | `learn/05_confidence_v0.py` | in doc | not-started | |
+| Blended confidence (v0) | A8 | `docs/learn/05-confidence-v0.md` | `learn/05_confidence_v0.py` | in doc | **done** | Blending retrieval agreement + sigmoid-scaled top-score gives an explainable, tunable confidence number that can be dashboarded and debugged — raw LLM self-confidence cannot. |
 | README / run-it-yourself | A10 | top-level `README.md` | — | — | not-started | |
 
 > NN is assigned in artifact-creation order (A1→00, A2→01, …); doc and script share the same NN.
