@@ -1,4 +1,4 @@
-"""LangGraph workflow for Slice B (scaffold → classify/sentiment/assess_missing).
+"""LangGraph workflow for Slice B (full guarded-copilot graph).
 
 Replaces the Slice A `Analyzer` with a `StateGraph` behind the same `/analyze` contract. State
 (`TicketState`) threads through nodes; each node returns a partial-state dict that LangGraph merges.
@@ -8,9 +8,15 @@ Slice B build order (08-SLICE-B-DESIGN.md):
   B3  — ``classify`` node (LLM picks category/queue/priority from neighbors).
   B5  — ``assess_missing`` node (LLM lists missing ticket details).
   B6  — ``sentiment`` node (LLM scores frustration + negativity).
-  B7+ — score, decide, draft_reply, clarify (coming).
+  B7  — ``score`` node (deterministic: full_confidence + sla_risk).
+  B8  — ``decide`` node + conditional routing (guarded-copilot pattern).
+  B9  — ``draft_reply`` and ``clarify`` generation nodes (LLM, degrade gracefully).
 
-Current graph: START → retrieve → classify → sentiment → assess_missing → END.
+Current graph:
+  START → retrieve → classify → sentiment → assess_missing → score → decide ◇
+                                                        ├ answer   → draft_reply → END
+                                                        ├ clarify  → clarify     → END
+                                                        └ escalate → END
 """
 
 from __future__ import annotations
@@ -21,6 +27,7 @@ from typing import Any, TypedDict, cast
 from langgraph.graph import END, START, StateGraph
 
 from app.analyze.baseline import majority_vote
+from app.analyze.scoring import full_confidence, sla_risk
 from app.config import get_settings
 from app.providers.chat import ChatModel
 from app.providers.embeddings import Embedder
@@ -62,6 +69,36 @@ ASSESS_MISSING_SYSTEM: str = (
     "Return an empty list if the ticket contains all necessary information."
 )
 
+DRAFT_REPLY_SYSTEM: str = (
+    "You are a helpful support agent. "
+    "Using the provided ticket and similar historical cases as evidence, "
+    "write a concise, grounded response to the customer. "
+    "Be professional and helpful. "
+    "Base your answer on the historical cases provided — do NOT speculate beyond them."
+)
+
+CLARIFY_SYSTEM: str = (
+    "You are a support intake agent. "
+    "Given a ticket and a list of missing details, "
+    "write 1–2 short, polite clarifying questions to gather the needed information. "
+    'Return ONLY a JSON object with one key: "clarification" '
+    "(a list of 1–2 question strings)."
+)
+
+# ---------------------------------------------------------------------------
+# Decision thresholds (module constants — importable for testing and learning scripts)
+# ---------------------------------------------------------------------------
+
+#: At or above this confidence, answer directly — strong retrieval/agreement is trusted, so we don't
+#: over-clarify on the LLM's eager missing-info nor escalate on a high-but-confident SLA risk.
+CLARIFY_CONFIDENCE_BELOW: float = 0.7
+
+#: Below this confidence the copilot is genuinely uncertain → escalate to a human.
+ESCALATE_CONFIDENCE_BELOW: float = 0.4
+
+#: Escalate when SLA risk is extreme AND we are not already confident (see route_decision).
+ESCALATE_SLA_RISK_ABOVE: float = 0.85
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -87,6 +124,44 @@ class TicketState(TypedDict, total=False):
     clarification: list[str]
     suggested_reply: str | None
     escalate: bool
+
+
+# ---------------------------------------------------------------------------
+# Pure routing helper (importable without instantiating the graph)
+# ---------------------------------------------------------------------------
+
+
+def route_decision(
+    confidence: float,
+    sla_risk_score: float,
+    missing_info: list[str],
+) -> str:
+    """Return the routing decision for a ticket given its scored state.
+
+    Confidence-primary routing (a guarded copilot that doesn't overcommit OR over-escalate):
+      1. Confident (>= CLARIFY_CONFIDENCE_BELOW) → **answer** directly. Strong retrieval + label
+         agreement is trusted, so we don't escalate on a high-but-confident SLA risk nor clarify on
+         the LLM's (typically eager) missing-info list.
+      2. Otherwise, if genuinely uncertain (confidence < ESCALATE_CONFIDENCE_BELOW) or the SLA risk
+         is extreme (> ESCALATE_SLA_RISK_ABOVE) → **escalate** to a human.
+      3. Otherwise, if details are missing → **clarify** with the customer.
+      4. Else → **answer**.
+
+    Args:
+        confidence:     Blended confidence score from ``full_confidence`` (in [0, 1]).
+        sla_risk_score: SLA risk score from ``sla_risk`` (in [0, 1]).
+        missing_info:   List of missing detail strings from ``assess_missing``.
+
+    Returns:
+        One of ``"escalate"``, ``"clarify"``, or ``"answer"``.
+    """
+    if confidence >= CLARIFY_CONFIDENCE_BELOW:
+        return "answer"
+    if confidence < ESCALATE_CONFIDENCE_BELOW or sla_risk_score > ESCALATE_SLA_RISK_ABOVE:
+        return "escalate"
+    if missing_info:
+        return "clarify"
+    return "answer"
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +272,104 @@ def build_graph(
             return {"missing_info": []}
 
     # ------------------------------------------------------------------
-    # Wire edges: START → retrieve → classify → sentiment → assess_missing → END
+    # Node: score (B7) — deterministic confidence + SLA risk, no LLM
+    # ------------------------------------------------------------------
+
+    def score(state: TicketState) -> dict[str, Any]:
+        """Compute full blended confidence and SLA risk from the current state.
+
+        Deterministic — no LLM, no try/except needed. Reads neighbors (for
+        re-deriving agreement and majority_queue), state labels from classify,
+        sentiment from the sentiment node, and missing_info length.
+        """
+        neighbors: list[Neighbor] = cast(list[Neighbor], state.get("neighbors") or [])
+        maj_queue, _, _, agreement = majority_vote(neighbors)
+        top_score: float = neighbors[0].score if neighbors else 0.0
+        llm_queue: str | None = state.get("queue")
+        missing_count = len(state.get("missing_info") or [])
+
+        sentiment_data: dict[str, float] | None = state.get("sentiment")
+        frustration: float = (sentiment_data or {}).get("frustration", 0.0)
+        priority: str | None = state.get("priority")
+        has_missing = missing_count > 0
+
+        conf = full_confidence(top_score, agreement, llm_queue, maj_queue, missing_count)
+        risk = sla_risk(priority, frustration, has_missing)
+        return {"confidence": conf, "sla_risk": risk}
+
+    # ------------------------------------------------------------------
+    # Node: decide (B8) — conditional routing (guarded copilot)
+    # ------------------------------------------------------------------
+
+    def decide(state: TicketState) -> dict[str, Any]:
+        """Choose answer / clarify / escalate from scored state (no I/O)."""
+        conf = float(state.get("confidence", 0.0))
+        risk = float(state.get("sla_risk") or 0.0)
+        missing: list[str] = list(state.get("missing_info") or [])
+        decision = route_decision(conf, risk, missing)
+        return {"decision": decision, "escalate": decision == "escalate"}
+
+    def router(state: TicketState) -> str:
+        """Extract the routing key from state for ``add_conditional_edges``."""
+        return state.get("decision", "escalate")
+
+    # ------------------------------------------------------------------
+    # Node: draft_reply (B9) — LLM drafts a grounded reply (answer branch)
+    # ------------------------------------------------------------------
+
+    def draft_reply(state: TicketState) -> dict[str, Any]:
+        """LLM-generate a suggested reply grounded in the top neighbor snippets.
+
+        Falls back to ``{"suggested_reply": None}`` on any error.
+        """
+        text: str = state["text"]
+        neighbors: list[Neighbor] = cast(list[Neighbor], state.get("neighbors") or [])
+        try:
+            snippets = "\n".join(
+                f"- [{n.queue}/{n.priority}] {n.snippet}"
+                for n in neighbors[:3]
+            )
+            user = f"Ticket:\n{text}\n\nSimilar resolved cases:\n{snippets or '(none)'}"
+            reply = chat_model.complete(DRAFT_REPLY_SYSTEM, user)
+            return {"suggested_reply": reply}
+        except Exception:
+            _logger.exception("draft_reply node: LLM call failed; returning None")
+            return {"suggested_reply": None}
+
+    # ------------------------------------------------------------------
+    # Node: clarify (B9) — LLM generates clarifying questions (clarify branch)
+    # ------------------------------------------------------------------
+
+    def clarify(state: TicketState) -> dict[str, Any]:
+        """LLM-generate 1–2 clarifying questions based on missing_info + ticket text.
+
+        On error or unexpected response shape falls back to converting each
+        ``missing_info`` item into a plain question string.
+        """
+        text: str = state["text"]
+        missing: list[str] = list(state.get("missing_info") or [])
+        try:
+            missing_str = "\n".join(f"- {item}" for item in missing)
+            user = f"Ticket:\n{text}\n\nMissing information:\n{missing_str}"
+            result = chat_model.complete_json(CLARIFY_SYSTEM, user)
+            raw = result.get("clarification", [])
+            if isinstance(raw, list):
+                questions: list[str] = [str(q) for q in raw if q]
+                if questions:
+                    return {"clarification": questions}
+            # Response was valid JSON but missing the expected key/shape — use fallback.
+            return {"clarification": [f"Could you provide: {item}?" for item in missing]}
+        except Exception:
+            _logger.exception("clarify node: LLM call failed; falling back to missing_info Qs")
+            return {"clarification": [f"Could you provide: {item}?" for item in missing] or []}
+
+    # ------------------------------------------------------------------
+    # Wire edges:
+    #   START → retrieve → classify → sentiment → assess_missing
+    #         → score → decide ◇
+    #                    ├ answer   → draft_reply → END
+    #                    ├ clarify  → clarify     → END
+    #                    └ escalate → END
     # ------------------------------------------------------------------
 
     builder: StateGraph[TicketState] = StateGraph(TicketState)
@@ -205,12 +377,24 @@ def build_graph(
     builder.add_node("classify", classify)
     builder.add_node("sentiment", sentiment)
     builder.add_node("assess_missing", assess_missing)
+    builder.add_node("score", score)
+    builder.add_node("decide", decide)
+    builder.add_node("draft_reply", draft_reply)
+    builder.add_node("clarify", clarify)
 
     builder.add_edge(START, "retrieve")
     builder.add_edge("retrieve", "classify")
     builder.add_edge("classify", "sentiment")
     builder.add_edge("sentiment", "assess_missing")
-    builder.add_edge("assess_missing", END)
+    builder.add_edge("assess_missing", "score")
+    builder.add_edge("score", "decide")
+    builder.add_conditional_edges(
+        "decide",
+        router,
+        {"answer": "draft_reply", "clarify": "clarify", "escalate": END},
+    )
+    builder.add_edge("draft_reply", END)
+    builder.add_edge("clarify", END)
 
     return builder.compile()
 

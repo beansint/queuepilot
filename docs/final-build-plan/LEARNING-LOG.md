@@ -40,7 +40,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Concept | Task | Doc | Script | Status | Takeaway |
 |---|---|---|---|---|---|
 | LangGraph state machines | B1 | `docs/learn/06-langgraph-state.md` | `learn/06_langgraph_state.py` | **done** | A node returns *what changed*; LangGraph merges partials and follows edges — control flow is explicit, inspectable structure. |
-| Guarded-copilot pattern (answer/clarify/escalate) | B8 | `docs/learn/07-guarded-copilot.md` | (pending) | not-started | |
+| Guarded-copilot pattern (answer/clarify/escalate) | B8 | `docs/learn/07-guarded-copilot.md` | `learn/07_guarded_copilot.py` | **done** | A guarded copilot escalates under uncertainty rather than hallucinating — confidence and SLA risk are deterministic, auditable numbers that drive a three-way route (answer/clarify/escalate), so control flow is inspectable and the LLM cannot bypass the safety net. |
 
 ## Slice C
 | Concept | Doc | Status |
