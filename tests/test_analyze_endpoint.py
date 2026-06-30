@@ -1,12 +1,16 @@
-"""A8 — POST /analyze endpoint tests (no network; get_analyzer is monkeypatched).
+"""B10/B11 — POST /analyze endpoint tests (no network; get_graph_analyzer is monkeypatched).
 
 Covers:
   * POST /analyze with valid text returns 200 + correct envelope shape.
   * POST /analyze with oversized text returns 422 (FastAPI validation).
   * POST /analyze with empty text returns 422.
-  * The response JSON includes all expected Slice-A keys.
-  * Reserved fields (sentiment, sla_risk, escalate, clarification,
-    suggested_reply, trace) are null in the response.
+  * The response JSON includes all expected Slice-B keys (previously reserved fields
+    may be non-null now that GraphAnalyzer populates them).
+  * The endpoint wires to get_graph_analyzer(), not get_analyzer().
+
+NOTE: The original A8 tests that verified reserved fields are null are updated here —
+in Slice B those fields are populated by the graph, so the fixture now returns a
+Slice-B style response (with sentiment/escalate/etc filled).
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ from app.main import app
 from app.schemas import AnalyzeResponse, SimilarTicket
 
 # ---------------------------------------------------------------------------
-# Fake Analyzer (returned by monkeypatched get_analyzer)
+# Known AnalyzeResponse returned by the fake GraphAnalyzer
 # ---------------------------------------------------------------------------
 
 _FAKE_RESPONSE = AnalyzeResponse(
@@ -32,13 +36,19 @@ _FAKE_RESPONSE = AnalyzeResponse(
         SimilarTicket(score=0.80, queue="Billing", priority="low",  type="refund",
                       snippet="Wrong amount"),
     ],
+    # Slice-B fields — populated by GraphAnalyzer in the wild
+    sentiment={"frustration": 0.3, "negativity": 0.2},
+    sla_risk=0.1,
+    escalate=False,
+    clarification=None,
+    suggested_reply="Please check your billing statement.",
 )
 
 
-class _FakeAnalyzer:
-    """Minimal Analyzer stub — always returns _FAKE_RESPONSE."""
+class _FakeGraphAnalyzer:
+    """Minimal GraphAnalyzer stub — always returns _FAKE_RESPONSE."""
 
-    def analyze(self, text: str, top_k: int = 5, alpha: float | None = None) -> AnalyzeResponse:
+    def analyze(self, text: str) -> AnalyzeResponse:
         return _FAKE_RESPONSE
 
 
@@ -49,9 +59,9 @@ class _FakeAnalyzer:
 
 @pytest.fixture()
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """TestClient with get_analyzer patched to avoid network calls."""
-    fake = _FakeAnalyzer()
-    monkeypatch.setattr("app.main.get_analyzer", lambda: fake)
+    """TestClient with get_graph_analyzer patched to avoid network calls."""
+    fake = _FakeGraphAnalyzer()
+    monkeypatch.setattr("app.main.get_graph_analyzer", lambda: fake)
     return TestClient(app)
 
 
@@ -109,12 +119,16 @@ def test_analyze_response_similar_ticket_shape(client: TestClient) -> None:
     assert "snippet" in ticket
 
 
-def test_analyze_reserved_fields_null(client: TestClient) -> None:
-    """Slice-B/C reserved fields are null in the Slice-A response."""
+def test_analyze_slice_b_fields_present(client: TestClient) -> None:
+    """Slice-B fields are populated (non-null) now that GraphAnalyzer is wired in."""
     body = client.post("/analyze", json={"text": "billing problem"}).json()
-    for field in ("sentiment", "sla_risk", "escalate", "clarification",
-                  "suggested_reply", "trace"):
-        assert body[field] is None, f"expected {field} to be null, got {body[field]!r}"
+    # Slice-B fields are now populated by GraphAnalyzer
+    assert body["sentiment"] is not None, "sentiment should be populated in Slice B"
+    assert body["sla_risk"] is not None, "sla_risk should be populated in Slice B"
+    assert body["escalate"] is not None, "escalate should be populated in Slice B"
+    assert body["suggested_reply"] is not None, "suggested_reply should be populated in Slice B"
+    # trace is still null until Slice C
+    assert body["trace"] is None, "trace must remain null until Slice C"
 
 
 def test_analyze_with_metadata(client: TestClient) -> None:

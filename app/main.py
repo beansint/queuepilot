@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from app.analyze.baseline import get_analyzer
+from app.analyze.graph_analyzer import get_graph_analyzer
 from app.config import get_settings
 from app.schemas import AnalyzeRequest, AnalyzeResponse
 
@@ -27,12 +27,13 @@ def health() -> dict[str, str]:
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    """Analyze a support ticket: retrieve similar historical cases and derive labels.
+    """Analyze a support ticket with the Slice B LangGraph workflow.
 
-    Returns a forward-compatible envelope (see 03-API-CONTRACT.md).  Slice A populates
-    category, queue, priority, confidence, and similar_tickets; reserved fields are null
-    until their owning slice lands.
+    Runs the full guarded-copilot graph (retrieve → classify → sentiment →
+    assess_missing → score → decide → draft_reply|clarify) and returns a
+    populated Slice-B envelope (see 03-API-CONTRACT.md).
 
+    Falls back automatically to the Slice A ``Analyzer`` if the graph raises.
     Raises 422 automatically on request validation failure (e.g. oversized text).
     """
-    return get_analyzer().analyze(req.text)
+    return get_graph_analyzer().analyze(req.text)
