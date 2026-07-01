@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QueuePilot — from classic RAG to a guarded agentic copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#F8FAFC;
+    --card:#FFFFFF;
+    --ink:#0F172A;
+    --muted:#64748B;
+    --hairline:#E2E8F0;
+    --accent:#0369A1;
+    --accent-light:#E0F2FE;
+    --hero:#0C4A6E;
+    --hero-light:#EFF8FF;
+    --green:#16A34A;
+    --green-light:#F0FDF4;
+    --amber:#D97706;
+    --amber-light:#FFFBEB;
+    --red:#DC2626;
+    --red-light:#FEF2F2;
+    --radius:14px;
+    --radius-sm:9px;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+    --shadow-md: 0 4px 16px rgba(15,23,42,0.08);
+    --shadow-lg: 0 12px 32px rgba(15,23,42,0.12);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+
+  html{ scroll-behavior:smooth; }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *,*::before,*::after{ animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; }
+  }
+
+  body{
+    margin:0;
+    background:var(--canvas);
+    color:var(--ink);
+    font-family:'Inter', -apple-system, sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .mono{ font-family:'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+  .tabular{ font-variant-numeric: tabular-nums; }
+
+  a{ color:var(--accent); }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ---------- Title strip ---------- */
+  .title-strip{
+    position:sticky; top:0; z-index:50;
+    background:var(--hero);
+    color:#F0F9FF;
+    padding:14px 24px;
+    display:flex; align-items:center; gap:12px;
+    box-shadow:0 2px 12px rgba(12,74,110,0.25);
+  }
+  .title-strip svg{ flex:none; width:22px; height:22px; stroke:#7DD3FC; }
+  .title-strip .strip-text{
+    font-size:14.5px;
+    font-weight:600;
+    letter-spacing:0.01em;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .title-strip .strip-text b{ color:#7DD3FC; font-weight:700; }
+  .title-strip .progress-track{
+    margin-left:auto;
+    flex:none;
+    width:120px;
+    height:4px;
+    background:rgba(255,255,255,0.18);
+    border-radius:4px;
+    overflow:hidden;
+    display:none;
+  }
+  @media (min-width:640px){ .title-strip .progress-track{ display:block; } }
+  .title-strip .progress-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,#38BDF8,#7DD3FC);
+    transition:width 120ms linear;
+  }
+
+  main{ max-width:920px; margin:0 auto; padding:0 20px 100px; }
+
+  section{ padding-top:64px; }
+  section:first-of-type{ padding-top:40px; }
+
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
+    color:var(--accent);
+    background:var(--accent-light);
+    border:1px solid #BAE6FD;
+    padding:4px 10px 4px 8px;
+    border-radius:999px;
+    margin-bottom:14px;
+  }
+  .eyebrow svg{ width:13px; height:13px; }
+
+  h1{ font-size:clamp(26px,4vw,36px); font-weight:800; letter-spacing:-0.02em; margin:0 0 10px; }
+  h2{ font-size:clamp(21px,3vw,26px); font-weight:800; letter-spacing:-0.015em; margin:0 0 10px; }
+  h3{ font-size:16.5px; font-weight:700; margin:0 0 6px; }
+  p{ margin:0 0 14px; color:var(--ink); }
+  .lede{ font-size:16px; color:var(--muted); max-width:64ch; }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow-sm);
+  }
+
+  /* ---------- Hero / intro RAG diagram ---------- */
+  .hero-note{
+    background: var(--hero-light);
+    border:1px solid #BAE6FD;
+    border-radius: var(--radius);
+    padding:16px 18px;
+    font-size:15px;
+    color:#0C4A6E;
+    margin-top:18px;
+  }
+  .hero-note b{ color: var(--hero); }
+
+  .rag-flow{
+    display:flex; align-items:stretch; gap:0;
+    overflow-x:auto;
+    padding:28px 4px 12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .rag-node{
+    flex:none;
+    min-width:126px;
+    background:var(--card);
+    border:1.5px solid var(--hairline);
+    border-radius:var(--radius-sm);
+    padding:14px 12px;
+    text-align:center;
+    box-shadow:var(--shadow-sm);
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .rag-node:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:var(--accent); }
+  .rag-node svg{ width:22px; height:22px; stroke:var(--accent); margin-bottom:8px; }
+  .rag-node .label{ font-weight:700; font-size:13.5px; }
+  .rag-node .sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .rag-arrow{
+    flex:none; width:38px; display:flex; align-items:center; justify-content:center;
+    color:var(--muted);
+  }
+  .rag-arrow svg{ width:22px; height:22px; }
+
+  /* ---------- Upgrade cards ---------- */
+  .upgrades-grid{ display:flex; flex-direction:column; gap:16px; margin-top:22px; }
+  .upgrade-card{
+    background:var(--card);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    padding:22px 22px 20px;
+    box-shadow:var(--shadow-sm);
+    position:relative;
+    overflow:hidden;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .upgrade-card:hover{ box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .upgrade-card.star{
+    border-color:#7DD3FC;
+    background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 60%);
+  }
+  .upgrade-card.star::before{
+    content:"";
+    position:absolute; inset:0 0 auto 0; height:4px;
+    background: linear-gradient(90deg,var(--hero),var(--accent),#7DD3FC);
+  }
+  .upgrade-head{ display:flex; align-items:flex-start; gap:14px; }
+  .upgrade-num{
+    flex:none;
+    width:38px; height:38px;
+    border-radius:10px;
+    background:var(--hero);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:15px;
+  }
+  .upgrade-card.star .upgrade-num{ background: linear-gradient(135deg,var(--hero),var(--accent)); }
+  .upgrade-icon-wrap{
+    flex:none;
+    width:38px; height:38px;
+    border-radius:10px;
+    background:var(--accent-light);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .upgrade-icon-wrap svg{ width:20px; height:20px; stroke:var(--accent); }
+  .upgrade-titlebox{ flex:1; min-width:0; }
+  .upgrade-titlebox .title-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .star-chip{
+    font-size:11px; font-weight:700; letter-spacing:0.04em;
+    color:#B45309; background:#FEF3C7; border:1px solid #FDE68A;
+    padding:2px 8px; border-radius:999px; display:inline-flex; align-items:center; gap:4px;
+  }
+  .star-chip svg{ width:11px; height:11px; fill:#D97706; stroke:#D97706; }
+  .lang-pill{
+    display:inline-flex; align-items:center; gap:4px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:600;
+    color:var(--accent); background:var(--accent-light); border:1px solid #BAE6FD;
+    padding:2px 8px 2px 6px; border-radius:999px; letter-spacing:0.01em;
+  }
+  .lang-pill svg{ width:11px; height:11px; }
+
+  /* ---------- Lang* stack section ---------- */
+  .lang-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px; }
+  @media (max-width:820px){ .lang-grid{ grid-template-columns:1fr; } }
+  .lang-card{
+    background:var(--card); border:1px solid var(--hairline); border-radius:var(--radius);
+    padding:20px 20px 18px; box-shadow:var(--shadow-sm);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .lang-card:hover{ box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .lang-card-head{ display:flex; align-items:center; gap:11px; margin-bottom:12px; }
+  .lang-card-head .lc-icon{
+    flex:none; width:34px; height:34px; border-radius:9px;
+    background:var(--hero); display:flex; align-items:center; justify-content:center;
+  }
+  .lang-card-head .lc-icon svg{ width:18px; height:18px; stroke:#7DD3FC; }
+  .lang-card-head .lc-name{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:16px; }
+  .lang-card-head .lc-dep{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); }
+  .lang-card .lc-what{ font-size:14px; margin-bottom:12px; }
+  .lang-meta{ display:flex; flex-direction:column; gap:8px; }
+  .lang-meta .lm-row{ display:flex; gap:8px; font-size:12.5px; }
+  .lang-meta .lm-key{
+    flex:none; width:74px; font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.04em; color:var(--accent); padding-top:2px;
+  }
+  .lang-meta .lm-val{ color:var(--ink); }
+  .lang-meta .lm-val code, .lang-meta .lm-val .fn{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    background:var(--canvas); border:1px solid var(--hairline);
+    padding:1px 5px; border-radius:5px; color:var(--hero); white-space:nowrap;
+    display:inline-block; margin:1px 2px 1px 0;
+  }
+  .lang-map-chip{
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:10.5px; font-weight:700; color:var(--hero);
+    background:var(--hero-light); border:1px solid #BAE6FD;
+    padding:2px 8px; border-radius:999px; margin-top:2px;
+  }
+  .lang-map-chip svg{ width:11px; height:11px; }
+  .lang-note{
+    margin-top:16px; display:flex; gap:11px; align-items:flex-start;
+    background:var(--canvas); border:1px solid var(--hairline); border-left:3px solid var(--muted);
+    border-radius:0 8px 8px 0; padding:13px 15px;
+    font-size:13px; color:var(--muted);
+  }
+  .lang-note svg{ flex:none; width:16px; height:16px; stroke:var(--muted); margin-top:2px; }
+  .lang-note b{ color:var(--ink); }
+  .upgrade-body{ margin-top:14px; font-size:14.5px; color:var(--ink); }
+  .upgrade-body p{ margin-bottom:8px; font-size:14.5px; }
+  .mini-diagram{
+    margin-top:14px;
+    background:var(--canvas);
+    border:1px dashed var(--hairline);
+    border-radius:10px;
+    padding:14px;
+    font-size:12.5px;
+  }
+
+  /* mini diagram: hybrid retrieval */
+  .hybrid-mini{ display:flex; flex-direction:column; gap:8px; }
+  .hybrid-row{ display:flex; align-items:center; gap:10px; }
+  .hybrid-tag{
+    flex:none; width:96px; text-align:right; font-weight:600; color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:11.5px;
+  }
+  .hybrid-bar-track{ flex:1; height:9px; background:#EAF2F8; border-radius:6px; overflow:hidden; }
+  .hybrid-bar-fill{ height:100%; border-radius:6px; }
+  .hybrid-bar-fill.dense{ background: linear-gradient(90deg,var(--accent),#38BDF8); width:72%; }
+  .hybrid-bar-fill.sparse{ background: linear-gradient(90deg,var(--hero),#0369A1); width:46%; }
+  .hybrid-merge{ display:flex; align-items:center; gap:6px; margin-top:2px; padding-left:106px; color:var(--accent); font-weight:700; font-size:11.5px; }
+  .hybrid-merge svg{ width:14px; height:14px; }
+
+  /* mini diagram: structured output before/after */
+  .form-before-after{ display:flex; flex-direction:column; gap:10px; }
+  .ba-row{ display:flex; gap:10px; align-items:flex-start; }
+  .ba-tag{ flex:none; width:52px; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); padding-top:2px;}
+  .ba-prose{
+    background:#fff; border:1px solid var(--hairline); border-radius:8px; padding:8px 10px;
+    font-style:italic; color:var(--muted); flex:1;
+  }
+  .ba-form{
+    display:grid; grid-template-columns:repeat(2,1fr); gap:6px; flex:1;
+  }
+  .ba-field{
+    background:#fff; border:1px solid #BAE6FD; border-radius:6px; padding:6px 8px;
+  }
+  .ba-field .k{ font-size:10px; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
+  .ba-field .v{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; }
+
+  /* mini diagram: assembly line */
+  .assembly-mini{ display:flex; align-items:center; gap:4px; overflow-x:auto; padding-bottom:2px;}
+  .assembly-chip{
+    flex:none;
+    background:#fff; border:1.5px solid var(--hairline); border-radius:999px;
+    padding:6px 11px; font-weight:600; font-size:11.5px; white-space:nowrap;
+    display:flex; align-items:center; gap:5px;
+  }
+  .assembly-chip .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .assembly-arrow-sm{ flex:none; color:var(--muted); }
+  .assembly-arrow-sm svg{ width:14px; height:14px; }
+  .assembly-state{
+    margin-top:10px; font-size:11.5px; color:var(--muted);
+    display:flex; align-items:center; gap:6px;
+  }
+  .assembly-state svg{ width:13px; height:13px; }
+
+  /* mini diagram: calibration teaser */
+  .calib-teaser{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .calib-teaser-eq{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--hero); font-weight:600;
+  }
+  .jump-link{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:12.5px; font-weight:700; color:var(--accent);
+    text-decoration:none; border-bottom:1.5px solid transparent;
+    transition:border-color 150ms ease;
+    white-space:nowrap;
+  }
+  .jump-link:hover{ border-color:var(--accent); }
+  .jump-link svg{ width:14px; height:14px; }
+
+  /* mini diagram: routing */
+  .route-mini-scale{
+    position:relative; height:26px; border-radius:6px; overflow:hidden; display:flex;
+    border:1px solid var(--hairline);
+  }
+  .route-mini-scale span{ display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; color:#fff; }
+  .route-mini-scale .esc{ background:var(--red); width:35%; }
+  .route-mini-scale .clar{ background:var(--amber); width:27%; }
+  .route-mini-scale .ans{ background:var(--green); width:38%; }
+
+  /* ---------- Four signals section ---------- */
+  .signals-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px; }
+  @media (max-width:820px){ .signals-grid{ grid-template-columns:1fr; } }
+  .signal-card{
+    background:var(--card); border:1px solid var(--hairline); border-radius:var(--radius);
+    padding:18px 18px 16px; box-shadow:var(--shadow-sm); position:relative;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .signal-card:hover{ box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .signal-head{ display:flex; align-items:center; gap:11px; margin-bottom:10px; }
+  .signal-icon{
+    flex:none; width:34px; height:34px; border-radius:9px;
+    background:var(--accent-light); display:flex; align-items:center; justify-content:center;
+  }
+  .signal-icon svg{ width:18px; height:18px; stroke:var(--accent); }
+  .signal-icon.penalty{ background:var(--red-light); }
+  .signal-icon.penalty svg{ stroke:var(--red); }
+  .signal-name{ font-weight:700; font-size:15px; flex:1; min-width:0; }
+  .signal-weight{
+    flex:none; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+    color:var(--accent); background:var(--accent-light); border:1px solid #BAE6FD;
+    padding:2px 8px; border-radius:6px;
+  }
+  .signal-weight.neg{ color:var(--red); background:var(--red-light); border-color:#FCA5A5; }
+  .signal-def{ font-size:13.5px; margin-bottom:10px; }
+  .signal-eg{
+    font-size:12.5px; color:var(--ink); background:var(--canvas);
+    border:1px dashed var(--hairline); border-radius:8px; padding:8px 10px; margin-bottom:10px;
+  }
+  .signal-eg .eg-tag{
+    font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
+    color:var(--muted); margin-right:4px;
+  }
+  .signal-maps{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:11.5px; font-weight:600; color:var(--hero);
+  }
+  .signal-maps svg{ width:13px; height:13px; }
+  .signal-maps .ctrl{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .signals-outro{
+    margin-top:18px; text-align:center; font-size:14.5px; font-weight:600; color:var(--hero);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .signals-outro svg{ width:18px; height:18px; stroke:var(--accent); }
+
+  /* ---------- Explorer section ---------- */
+  .explorer-wrap{
+    background: linear-gradient(180deg, var(--hero) 0%, #0A3D5A 100%);
+    border-radius:20px;
+    padding:2px;
+    margin-top:24px;
+    box-shadow:var(--shadow-lg);
+  }
+  .explorer-inner{
+    background:var(--card);
+    border-radius:18px;
+    padding:26px 24px 28px;
+  }
+  .explorer-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--hero); color:#fff;
+    font-size:11.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    padding:5px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  .explorer-badge svg{ width:13px; height:13px; fill:#FDE68A; stroke:#FDE68A; }
+
+  .explorer-grid{
+    display:grid; grid-template-columns: 1fr 1fr;
+    gap:24px;
+    margin-top:22px;
+  }
+  @media (max-width:820px){ .explorer-grid{ grid-template-columns:1fr; } }
+
+  .control-group{ margin-bottom:22px; }
+  .control-label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:13.5px; font-weight:600; margin-bottom:8px;
+  }
+  .control-label .val{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--accent); font-size:13.5px; }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:6px;
+    border-radius:4px;
+    background: var(--hairline);
+    outline-offset:4px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:20px; height:20px; border-radius:50%;
+    background:var(--accent);
+    border:3px solid #fff;
+    box-shadow:0 1px 4px rgba(3,105,161,0.5);
+    cursor:pointer;
+    transition: transform 120ms ease;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{ transform:scale(1.1); }
+  input[type=range]::-moz-range-thumb{
+    width:20px; height:20px; border-radius:50%;
+    background:var(--accent); border:3px solid #fff;
+    box-shadow:0 1px 4px rgba(3,105,161,0.5); cursor:pointer;
+  }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px;
+    background:var(--canvas);
+    border:1px solid var(--hairline);
+    border-radius:10px;
+    margin-bottom:12px;
+  }
+  .toggle-row .tlabel{ font-size:13.5px; font-weight:600; }
+  .toggle-row .tsub{ font-size:11.5px; color:var(--muted); font-weight:400; }
+  .switch{
+    position:relative; flex:none; width:44px; height:25px;
+  }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .switch .track{
+    position:absolute; inset:0; background:#CBD5E1; border-radius:999px;
+    transition: background 180ms ease; cursor:pointer;
+  }
+  .switch .track::before{
+    content:""; position:absolute; width:19px; height:19px; left:3px; top:3px;
+    background:#fff; border-radius:50%; transition:transform 180ms ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .switch input:checked + .track{ background:var(--accent); }
+  .switch input:checked + .track::before{ transform:translateX(19px); }
+  .switch input:focus-visible + .track{ outline:3px solid var(--accent); outline-offset:2px; }
+
+  .readout-panel{
+    display:flex; flex-direction:column; gap:18px;
+  }
+  .confidence-display{
+    text-align:center;
+    background:var(--canvas);
+    border:1px solid var(--hairline);
+    border-radius:14px;
+    padding:20px 16px 18px;
+  }
+  .confidence-display .cd-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
+  .confidence-display .cd-value{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:52px; line-height:1.1;
+    margin:4px 0 6px;
+    transition: color 200ms ease;
+  }
+  .decision-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-weight:700; font-size:13.5px;
+    padding:5px 14px; border-radius:999px;
+    transition: background 200ms ease, color 200ms ease;
+  }
+  .decision-pill svg{ width:15px; height:15px; }
+
+  .scale-wrap{ margin-top:4px; }
+  .scale-track{
+    position:relative; height:34px; border-radius:8px; overflow:visible;
+    display:flex; border:1px solid var(--hairline);
+  }
+  .scale-track .zone{ position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .scale-track .zone:first-child{ border-radius:7px 0 0 7px; }
+  .scale-track .zone:last-child{ border-radius:0 7px 7px 0; }
+  .zone.z-escalate{ background:var(--red-light); width:35%; }
+  .zone.z-clarify{ background:var(--amber-light); width:27%; }
+  .zone.z-answer{ background:var(--green-light); width:38%; }
+  .zone .zlabel{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .zone.z-escalate .zlabel{ color:var(--red); }
+  .zone.z-clarify .zlabel{ color:var(--amber); }
+  .zone.z-answer .zlabel{ color:var(--green); }
+  .scale-marker{
+    position:absolute; top:-9px;
+    width:3px; height:52px;
+    background:var(--ink);
+    left:0%;
+    transform:translateX(-50%);
+    transition: left 120ms ease;
+    border-radius:2px;
+  }
+  .scale-marker::after{
+    content:"";
+    position:absolute; top:-7px; left:50%; transform:translateX(-50%);
+    width:0; height:0;
+    border-left:6px solid transparent; border-right:6px solid transparent;
+    border-top:7px solid var(--ink);
+  }
+  .scale-ticks{ display:flex; justify-content:space-between; margin-top:6px; font-size:10.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+
+  .contribution-panel{ margin-top:4px; }
+  .contribution-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px; }
+  .stack-bar{
+    display:flex; height:30px; border-radius:8px; overflow:hidden; border:1px solid var(--hairline);
+    background:#F1F5F9;
+  }
+  .stack-bar .seg{ height:100%; transition:width 150ms ease; min-width:0; }
+  .seg-agreement{ background:#0369A1; }
+  .seg-closeness{ background:#38BDF8; }
+  .seg-consistency{ background:#7DD3FC; }
+  .seg-penalty{ background:var(--red); }
+  .stack-legend{ display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:12px; font-size:12px; }
+  .stack-legend .li{ display:flex; align-items:center; gap:6px; }
+  .stack-legend .sw{ width:11px; height:11px; border-radius:3px; flex:none; }
+  .stack-legend .lval{ font-family:'JetBrains Mono',monospace; font-weight:700; margin-left:2px; }
+
+  .explorer-caption{
+    margin-top:20px;
+    background:var(--hero-light);
+    border-left:3px solid var(--hero);
+    padding:12px 16px;
+    border-radius:0 8px 8px 0;
+    font-size:13.5px;
+    color:#0C4A6E;
+  }
+
+  .formula-box{
+    background:#0C1B2A;
+    color:#DBEAFE;
+    border-radius:10px;
+    padding:16px 18px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    line-height:1.85;
+    overflow-x:auto;
+    margin-bottom:20px;
+  }
+  .formula-box .c1{ color:#7DD3FC; }
+  .formula-box .c2{ color:#FDE68A; }
+  .formula-box .c3{ color:#FCA5A5; }
+  .formula-box .cm{ color:#94A3B8; }
+
+  /* ---------- Calibration chart section ---------- */
+  .calib-grid{ display:flex; flex-direction:column; gap:26px; margin-top:22px; }
+  .calib-card{ padding:22px; }
+  .calib-card-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+  .calib-tag{
+    font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
+    padding:4px 10px; border-radius:999px;
+  }
+  .calib-tag.bad{ background:var(--red-light); color:var(--red); border:1px solid #FCA5A5; }
+  .calib-tag.good{ background:var(--green-light); color:var(--green); border:1px solid #86EFAC; }
+
+  .self-conf-chart{ display:flex; align-items:flex-end; gap:34px; padding:10px 10px 0; height:170px; }
+  .sc-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:8px; flex:none; width:96px;}
+  .sc-bar-track{ width:56px; height:130px; display:flex; align-items:flex-end; background:#F1F5F9; border-radius:6px; overflow:hidden; }
+  .sc-bar{ width:100%; border-radius:6px 6px 0 0; }
+  .sc-bar.claimed{ background:linear-gradient(180deg,#94A3B8,#64748B); }
+  .sc-bar.actual{ background:linear-gradient(180deg,#F87171,var(--red)); }
+  .sc-col .sc-num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; }
+  .sc-col .sc-cap{ font-size:11.5px; color:var(--muted); text-align:center; }
+  .self-conf-gap-label{
+    align-self:center;
+    text-align:center;
+    font-size:13px;
+    color:var(--red);
+    font-weight:700;
+    margin-left:6px;
+  }
+
+  .bucket-chart{ display:flex; flex-direction:column; gap:16px; }
+  .bucket-row{ display:flex; align-items:center; gap:14px; }
+  .bucket-tag{
+    flex:none; width:78px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--muted); text-align:right;
+  }
+  .bucket-bars{ flex:1; display:flex; flex-direction:column; gap:5px; }
+  .bucket-bar-line{ display:flex; align-items:center; gap:8px; }
+  .bucket-bar-line .bl-label{ flex:none; width:52px; font-size:10.5px; color:var(--muted); }
+  .bucket-bar-line .bl-track{ flex:1; height:14px; background:#F1F5F9; border-radius:5px; overflow:hidden; }
+  .bucket-bar-line .bl-fill{ height:100%; border-radius:5px; transition:width 200ms ease; }
+  .bl-fill.claimed{ background:#94A3B8; }
+  .bl-fill.actual{ background:var(--green); }
+  .bucket-bar-line .bl-num{ flex:none; width:40px; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; text-align:right; }
+
+  .calib-summary-strip{
+    display:flex; align-items:center; gap:10px;
+    margin-top:16px; padding:12px 14px;
+    border-radius:8px;
+    font-size:13px; font-weight:600;
+  }
+  .calib-summary-strip.bad{ background:var(--red-light); color:#991B1B; }
+  .calib-summary-strip.good{ background:var(--green-light); color:#166534; }
+  .calib-summary-strip svg{ width:16px; height:16px; flex:none; }
+
+  /* ---------- Takeaway / quiz ---------- */
+  .takeaway-card{
+    background: linear-gradient(135deg, var(--hero) 0%, #08344D 100%);
+    color:#F0F9FF;
+    border-radius:var(--radius);
+    padding:26px 26px 24px;
+    margin-top:20px;
+  }
+  .takeaway-card h2{ color:#fff; }
+  .takeaway-card p{ color:#BAE6FD; }
+  .takeaway-card b{ color:#fff; }
+  .run-it{
+    margin-top:16px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .run-it .ri-label{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7DD3FC; margin-bottom:6px; }
+  .run-it code{ font-family:'JetBrains Mono',monospace; font-size:13px; color:#F0F9FF; }
+
+  details.quiz{
+    margin-top:22px;
+    background:var(--card);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    padding:4px 20px;
+  }
+  details.quiz summary{
+    cursor:pointer;
+    list-style:none;
+    padding:16px 0;
+    font-weight:700;
+    font-size:15px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  details.quiz summary::-webkit-details-marker{ display:none; }
+  details.quiz summary .chev{ transition: transform 200ms ease; color:var(--accent); flex:none; }
+  details.quiz summary .chev svg{ width:18px; height:18px; }
+  details.quiz[open] summary .chev{ transform:rotate(180deg); }
+  .quiz-body{ padding-bottom:18px; }
+  .quiz-q{ margin-bottom:16px; }
+  .quiz-q .qn{ font-weight:700; font-size:14px; margin-bottom:6px; }
+  .quiz-q .qa{
+    font-size:13.5px; color:var(--muted);
+    background:var(--canvas); border:1px solid var(--hairline); border-radius:8px;
+    padding:10px 12px;
+  }
+
+  footer{
+    text-align:center; padding:36px 20px 60px; color:var(--muted); font-size:12.5px;
+  }
+
+  @media (max-width:640px){
+    section{ padding-top:48px; }
+    .self-conf-chart{ gap:18px; }
+    .sc-col{ width:80px; }
+    .ba-form{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="title-strip">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+  <div class="strip-text">QueuePilot — from classic RAG to a <b>guarded agentic copilot</b> · an interactive lesson</div>
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<main>
+
+  <!-- ============ 1. START FROM WHAT YOU KNOW ============ -->
+  <section id="sec-rag">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Start from what you know</span>
+    <h1>You already know classic RAG.</h1>
+    <p class="lede">Embed a question, search a vector index, stuff the top matches into a prompt, generate an answer. That loop is the foundation. QueuePilot keeps it — and bolts on five upgrades.</p>
+
+    <div class="rag-flow" role="img" aria-label="Classic RAG flow: question, embed, vector search, top-k chunks, LLM, answer">
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <div class="label">Question</div>
+        <div class="sub">ticket text</div>
+      </div>
+      <div class="rag-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>
+        <div class="label">Embed</div>
+        <div class="sub">text → vector</div>
+      </div>
+      <div class="rag-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <div class="label">Vector search</div>
+        <div class="sub">nearest neighbours</div>
+      </div>
+      <div class="rag-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <div class="label">Top-k chunks</div>
+        <div class="sub">retrieved evidence</div>
+      </div>
+      <div class="rag-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
+        <div class="label">LLM</div>
+        <div class="sub">reads + writes</div>
+      </div>
+      <div class="rag-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></div>
+      <div class="rag-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+        <div class="label">Answer</div>
+        <div class="sub">+ citation</div>
+      </div>
+    </div>
+
+    <div class="hero-note">You know this loop. <b>QueuePilot adds 5 upgrades</b> on top of it — scroll through them, then play with the confidence formula that powers upgrade #4.</div>
+  </section>
+
+  <!-- ============ 2. THE 5 UPGRADES ============ -->
+  <section id="sec-upgrades">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.5 6.9L21 11l-6.5 2.1L12 20l-2.5-6.9L3 11l6.5-2.1L12 2Z"/></svg>Five upgrades</span>
+    <h2>Same loop, five upgrades bolted on</h2>
+    <p class="lede">Each one is a small, nameable idea. Together they turn a retrieve-and-generate pipeline into a copilot that knows how much to trust itself.</p>
+
+    <div class="upgrades-grid">
+
+      <!-- Upgrade 1 -->
+      <div class="upgrade-card">
+        <div class="upgrade-head">
+          <div class="upgrade-num">1</div>
+          <div class="upgrade-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/></svg></div>
+          <div class="upgrade-titlebox">
+            <div class="title-row"><h3>Hybrid retrieval</h3></div>
+          </div>
+        </div>
+        <div class="upgrade-body">
+          <p>Embeddings match by <b>meaning</b> — they can miss exact terms like a law number, an error code, or a product name. So QueuePilot adds an old-school <b>keyword matcher (BM25)</b> alongside the dense matcher and blends the two.</p>
+          <p>Gotcha: the two scores live on different scales, so you <b>normalize before blending</b> — otherwise one drowns out the other. A dial called <code class="mono">alpha</code> controls the mix (1.0 = pure meaning, 0.0 = pure keywords).</p>
+          <div class="mini-diagram">
+            <div class="hybrid-mini">
+              <div class="hybrid-row"><span class="hybrid-tag">dense (meaning)</span><div class="hybrid-bar-track"><div class="hybrid-bar-fill dense"></div></div></div>
+              <div class="hybrid-row"><span class="hybrid-tag">sparse (BM25)</span><div class="hybrid-bar-track"><div class="hybrid-bar-fill sparse"></div></div></div>
+              <div class="hybrid-merge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6 4 12l4 6M16 6l4 6-4 6"/></svg>blend → normalize → hybrid_score(alpha)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upgrade 2 -->
+      <div class="upgrade-card">
+        <div class="upgrade-head">
+          <div class="upgrade-num">2</div>
+          <div class="upgrade-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+          <div class="upgrade-titlebox"><h3>Structured output</h3></div>
+        </div>
+        <div class="upgrade-body">
+          <p>Same retrieve-and-read, but the LLM fills in a <b>form</b>, not a paragraph — decisions a system can act on: category, queue, priority, sentiment.</p>
+          <div class="mini-diagram">
+            <div class="form-before-after">
+              <div class="ba-row">
+                <span class="ba-tag">Classic</span>
+                <div class="ba-prose">"Yes, a backward pass is legal because…"</div>
+              </div>
+              <div class="ba-row">
+                <span class="ba-tag">QueuePilot</span>
+                <div class="ba-form">
+                  <div class="ba-field"><div class="k">category</div><div class="v">Incident</div></div>
+                  <div class="ba-field"><div class="k">queue</div><div class="v">Tech Support</div></div>
+                  <div class="ba-field"><div class="k">priority</div><div class="v">High</div></div>
+                  <div class="ba-field"><div class="k">sentiment</div><div class="v">frustration: 0.72</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upgrade 3 -->
+      <div class="upgrade-card">
+        <div class="upgrade-head">
+          <div class="upgrade-num">3</div>
+          <div class="upgrade-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="6" height="6" rx="1"/><rect x="9" y="6" width="6" height="6" rx="1"/><rect x="16" y="6" width="6" height="6" rx="1"/><path d="M5 12v3M12 12v3M19 12v3"/><rect x="7" y="16" width="10" height="5" rx="1"/></svg></div>
+          <div class="upgrade-titlebox">
+            <div class="title-row"><h3>Agent assembly line</h3><span class="lang-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a3 3 0 0 1 3 3v6"/></svg>LangGraph</span></div>
+          </div>
+        </div>
+        <div class="upgrade-body">
+          <p>The prompt is split into a chain of small nodes: <b>retrieve → classify → sentiment → assess_missing → score → decide</b>. Each node shares a <b>state</b> dict that accumulates results — so you can see exactly what each step contributed. That visibility is what makes upgrade #5 possible.</p>
+          <div class="mini-diagram">
+            <div class="assembly-mini">
+              <div class="assembly-chip"><span class="dot"></span>retrieve</div>
+              <div class="assembly-arrow-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+              <div class="assembly-chip"><span class="dot"></span>classify</div>
+              <div class="assembly-arrow-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+              <div class="assembly-chip"><span class="dot"></span>sentiment</div>
+              <div class="assembly-arrow-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+              <div class="assembly-chip"><span class="dot"></span>assess_missing</div>
+              <div class="assembly-arrow-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+              <div class="assembly-chip"><span class="dot"></span>score</div>
+              <div class="assembly-arrow-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>
+              <div class="assembly-chip"><span class="dot"></span>decide</div>
+            </div>
+            <div class="assembly-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>every node reads &amp; writes the same shared state</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upgrade 4 - STAR -->
+      <div class="upgrade-card star">
+        <div class="upgrade-head">
+          <div class="upgrade-num">4</div>
+          <div class="upgrade-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.5 6.9L21 11l-6.5 2.1L12 20l-2.5-6.9L3 11l6.5-2.1L12 2Z"/></svg></div>
+          <div class="upgrade-titlebox">
+            <div class="title-row"><h3>Calibrated confidence</h3><span class="star-chip"><svg viewBox="0 0 24 24"><path d="m12 2 2.5 6.9L21 11l-6.5 2.1L12 20l-2.5-6.9L3 11l6.5-2.1L12 2Z"/></svg>THE BIG ONE</span></div>
+          </div>
+        </div>
+        <div class="upgrade-body">
+          <p><b>The trap:</b> ask an LLM "how sure are you?" and it says "very!" almost every time — right or wrong. LLMs are <b>overconfident and badly calibrated</b>, so self-reported confidence is noise.</p>
+          <p><b>The fix:</b> never ask the model. Build trust from things you can <b>observe</b> — neighbour agreement, retrieval closeness, cross-check consistency, a penalty for missing info.</p>
+          <div class="mini-diagram">
+            <div class="calib-teaser">
+              <span class="calib-teaser-eq">confidence = f(agreement, closeness, consistency, missing) — never f(LLM's own claim)</span>
+              <a class="jump-link" href="#sec-explorer">Play with the real formula <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upgrade 5 -->
+      <div class="upgrade-card">
+        <div class="upgrade-head">
+          <div class="upgrade-num">5</div>
+          <div class="upgrade-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></div>
+          <div class="upgrade-titlebox">
+            <div class="title-row"><h3>Guarded routing + explainability</h3><span class="lang-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>LangSmith</span></div>
+          </div>
+        </div>
+        <div class="upgrade-body">
+          <p>With a real confidence number, the last node <b>routes</b> instead of always answering: low trust → escalate to a human, missing info → clarify, high trust → answer (grounded in retrieved tickets, fewer hallucinations).</p>
+          <p><b>Explainability:</b> <code class="mono">--explain</code> itemizes the formula and the per-node trace. <b>Tracing</b> is a flight recorder — you can't unit-test an LLM (same input, different output), so every run is recorded and evaluated in aggregate.</p>
+          <div class="mini-diagram">
+            <div class="route-mini-scale" role="img" aria-label="Decision scale: escalate, clarify, answer zones">
+              <span class="esc">ESCALATE</span><span class="clar">CLARIFY</span><span class="ans">ANSWER</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 2b. THE FOUR SIGNALS ============ -->
+  <section id="sec-signals">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3 8 4-16 3 8h4"/></svg>Before you drag</span>
+    <h2>The four signals, in plain words</h2>
+    <p class="lede">The confidence score blends four measurable signals. Here's what each one means, with a concrete example — so the sliders and toggles below make sense before you touch them.</p>
+
+    <div class="signals-grid">
+
+      <!-- Signal 1 -->
+      <div class="signal-card">
+        <div class="signal-head">
+          <div class="signal-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a8 8 0 0 0-12 0"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <span class="signal-name">Neighbour agreement</span>
+          <span class="signal-weight">×0.5</span>
+        </div>
+        <div class="signal-def">Of the similar past tickets we retrieved, what fraction share the same winning label? When past cases speak with one voice, that consensus is evidence — so this is the <b>biggest</b> weight.</div>
+        <div class="signal-eg"><span class="eg-tag">e.g.</span>4 of the 5 nearest tickets are "Technical Support" → agreement <span class="mono">0.8</span>. Comes from <code class="mono">majority_vote</code>.</div>
+        <div class="signal-maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>maps to the <span class="ctrl">"Neighbour agreement"</span> slider</div>
+      </div>
+
+      <!-- Signal 2 -->
+      <div class="signal-card">
+        <div class="signal-head">
+          <div class="signal-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <span class="signal-name">Retrieval closeness</span>
+          <span class="signal-weight">×0.3</span>
+        </div>
+        <div class="signal-def">How strong is the single best match? The raw <code class="mono">top_score</code> is squashed to 0–1 with a <code class="mono">sigmoid</code> <span style="color:#64748B;font-style:italic">(an S-shaped curve that gently maps any number into a 0–1 range)</span> before it's blended in.</div>
+        <div class="signal-eg"><span class="eg-tag">e.g.</span>a <span class="mono">0.85</span> top hit means we've genuinely seen this before; a <span class="mono">0.30</span> top hit means we're guessing.</div>
+        <div class="signal-maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>maps to the <span class="ctrl">"Top match closeness"</span> slider</div>
+      </div>
+
+      <!-- Signal 3 -->
+      <div class="signal-card">
+        <div class="signal-head">
+          <div class="signal-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></div>
+          <span class="signal-name">Cross-check consistency</span>
+          <span class="signal-weight">+0.2</span>
+        </div>
+        <div class="signal-def">Does the LLM's own classification agree with the retrieval majority? Two independent methods pointing the same way earns a bonus; disagreement is a quiet warning sign.</div>
+        <div class="signal-eg"><span class="eg-tag">e.g.</span>LLM says "Technical Support" AND the neighbours' majority is "Technical Support" → <span class="mono">+0.2</span>; if they disagree, no bonus.</div>
+        <div class="signal-maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>maps to the <span class="ctrl">"LLM agrees with majority"</span> toggle</div>
+      </div>
+
+      <!-- Signal 4 -->
+      <div class="signal-card">
+        <div class="signal-head">
+          <div class="signal-icon penalty"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+          <span class="signal-name">Missing-info penalty</span>
+          <span class="signal-weight neg">−0.15</span>
+        </div>
+        <div class="signal-def">Did the <code class="mono">assess_missing</code> step find important details absent? We should be less sure when the ticket is under-specified.</div>
+        <div class="signal-eg"><span class="eg-tag">e.g.</span>no VPN client version, no error message → subtract <span class="mono">0.15</span>.</div>
+        <div class="signal-maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>maps to the <span class="ctrl">"Key details missing"</span> toggle</div>
+      </div>
+
+    </div>
+
+    <div class="signals-outro">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7M5 12h14"/><path d="M19 5v14" transform="rotate(180 12 12)"/></svg>
+      Drag the controls below and watch each of these move the score.
+    </div>
+  </section>
+
+  <!-- ============ 3. INTERACTIVE CONFIDENCE EXPLORER ============ -->
+  <section id="sec-explorer">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>Interactive</span>
+    <h2>The confidence explorer</h2>
+    <p class="lede">This reproduces the exact production formula from <code class="mono">app/analyze/scoring.py</code>. Drag the sliders, flip the toggles — watch the decision change in real time.</p>
+
+    <div class="formula-box">
+<span class="cm">base</span>        = <span class="c1">0.5</span> × agreement + <span class="c1">0.3</span> × sigmoid(top_score)
+<span class="cm">consistency</span> = <span class="c2">0.2</span> if llm_queue == majority_queue else 0
+<span class="cm">penalty</span>     = <span class="c3">0.15</span> if missing_count &gt; 0 else 0
+<span class="cm">final</span>       = clamp01(base + consistency − penalty)
+    </div>
+
+    <div class="explorer-wrap">
+      <div class="explorer-inner">
+        <span class="explorer-badge"><svg viewBox="0 0 24 24"><path d="m12 2 2.5 6.9L21 11l-6.5 2.1L12 20l-2.5-6.9L3 11l6.5-2.1L12 2Z"/></svg>Live from scoring.py</span>
+
+        <div class="explorer-grid">
+          <!-- Controls -->
+          <div class="controls-col">
+            <div class="control-group">
+              <div class="control-label"><span>Neighbour agreement</span><span class="val mono" id="valAgreement">0.60</span></div>
+              <input type="range" id="agreement" min="0" max="1" step="0.01" value="0.6" aria-describedby="valAgreement">
+            </div>
+            <div class="control-group">
+              <div class="control-label"><span>Top match closeness (top_score)</span><span class="val mono" id="valTopScore">0.60</span></div>
+              <input type="range" id="topScore" min="0" max="1" step="0.01" value="0.6" aria-describedby="valTopScore">
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div class="tlabel">LLM agrees with retrieval majority</div>
+                <div class="tsub">adds the +0.2 consistency bonus</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="consistency" checked>
+                <span class="track"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div class="tlabel">Key details missing</div>
+                <div class="tsub">applies the −0.15 penalty</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="missing">
+                <span class="track"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Readout -->
+          <div class="readout-panel">
+            <div class="confidence-display">
+              <div class="cd-label">Confidence</div>
+              <div class="cd-value mono" id="confValue">0.00%</div>
+              <span class="decision-pill" id="decisionPill"></span>
+            </div>
+
+            <div class="scale-wrap">
+              <div class="scale-track" role="img" aria-label="Decision scale from 0 to 1 with escalate, clarify, and answer zones">
+                <div class="zone z-escalate"><span class="zlabel">Escalate</span></div>
+                <div class="zone z-clarify"><span class="zlabel">Clarify</span></div>
+                <div class="zone z-answer"><span class="zlabel">Answer</span></div>
+                <div class="scale-marker" id="scaleMarker"></div>
+              </div>
+              <div class="scale-ticks"><span>0</span><span>0.35</span><span>0.62</span><span>1.0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="contribution-panel">
+          <div class="contribution-title">Contribution breakdown</div>
+          <div class="stack-bar" role="img" aria-label="Stacked contribution bar of the four confidence terms">
+            <div class="seg seg-agreement" id="segAgreement"></div>
+            <div class="seg seg-closeness" id="segCloseness"></div>
+            <div class="seg seg-consistency" id="segConsistency"></div>
+            <div class="seg seg-penalty" id="segPenalty"></div>
+          </div>
+          <div class="stack-legend">
+            <span class="li"><span class="sw" style="background:#0369A1"></span>agreement × 0.5 <span class="lval mono" id="lvAgreement">+0.000</span></span>
+            <span class="li"><span class="sw" style="background:#38BDF8"></span>closeness × 0.3 <span class="lval mono" id="lvCloseness">+0.000</span></span>
+            <span class="li"><span class="sw" style="background:#7DD3FC"></span>consistency <span class="lval mono" id="lvConsistency">+0.000</span></span>
+            <span class="li"><span class="sw" style="background:#DC2626"></span>missing penalty <span class="lval mono" id="lvPenalty">−0.000</span></span>
+          </div>
+        </div>
+
+        <div class="explorer-caption">Notice you never asked the LLM how sure it is — every input here is something you can measure.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3b. THE LANG* STACK ============ -->
+  <section id="sec-langstack">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4M2 11h20"/></svg>Under the hood</span>
+    <h2>The Lang* stack — where each piece fits</h2>
+    <p class="lede">Two LangChain-ecosystem tools do the heavy lifting. Here's exactly where each one lives in QueuePilot and which upgrade it powers.</p>
+
+    <div class="lang-grid">
+
+      <!-- LangGraph -->
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a3 3 0 0 1 3 3v6"/></svg></div>
+          <div>
+            <div class="lc-name">LangGraph</div>
+            <div class="lc-dep">direct dep · langgraph</div>
+          </div>
+        </div>
+        <div class="lc-what"><b>Orchestration.</b> Builds the workflow as a state machine: nodes + a shared <code class="mono">TicketState</code> + a conditional edge for the answer / clarify / escalate branch.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Powers</span><span class="lm-val"><span class="lang-map-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Upgrade 3 — the assembly line</span></span></div>
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>app/analyze/graph.py</code></span></div>
+          <div class="lm-row"><span class="lm-key">Functions</span><span class="lm-val"><span class="fn">StateGraph</span><span class="fn">add_node</span><span class="fn">add_edge</span><span class="fn">add_conditional_edges</span><span class="fn">compile()</span><span class="fn">.invoke(state)</span></span></div>
+        </div>
+      </div>
+
+      <!-- LangSmith -->
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div>
+            <div class="lc-name">LangSmith</div>
+            <div class="lc-dep">direct dep · langsmith</div>
+          </div>
+        </div>
+        <div class="lc-what"><b>Observability / tracing.</b> Records each run as a tree of spans so you can inspect, replay, and (Slice D) evaluate a non-deterministic LLM pipeline — and it produces the clickable <code class="mono">trace</code> URL in the response.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Powers</span><span class="lm-val"><span class="lang-map-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Upgrade 5 — tracing / --explain</span></span></div>
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>@traceable</code> on Groq calls in <code>app/providers/chat.py</code>; run capture + <code>tracing_context</code> in <code>app/analyze/graph_analyzer.py</code>; summary in <code>app/analyze/trace.py</code></span></div>
+          <div class="lm-row"><span class="lm-key">Functions</span><span class="lm-val"><span class="fn">@traceable</span><span class="fn">tracing_context</span><span class="fn">get_current_run_tree</span></span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="lang-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <span><b>Honest note:</b> <code class="mono">langchain-core</code> sits underneath LangGraph as a transitive dep — QueuePilot never imports it directly. The LLM layer is deliberately a plain provider registry (Groq / Gemini / OpenAI drop-ins), <b>not</b> LangChain chat-model classes. That's exactly why the <code class="mono">@traceable</code> wrapper is what makes those raw provider calls show up in the trace.</span>
+    </div>
+  </section>
+
+  <!-- ============ 4. WHY NOT JUST TRUST THE LLM ============ -->
+  <section id="sec-calibration">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Reliability check</span>
+    <h2>Why not just trust the LLM?</h2>
+    <p class="lede">Real numbers from <code class="mono">learn/10_calibration_demo.py</code> — a script that simulates both approaches and measures whether "X% confident" really means "right X% of the time."</p>
+
+    <div class="calib-grid">
+
+      <div class="card calib-card">
+        <div class="calib-card-head">
+          <h3 style="margin:0;">Self-reported confidence</h3>
+          <span class="calib-tag bad">calibration error ≈ 0.33 — bad</span>
+        </div>
+        <div class="self-conf-chart" role="img" aria-label="Bar chart: claimed 95 percent confidence versus 53 percent actual accuracy">
+          <div class="sc-col">
+            <div class="sc-num" id="scClaimedNum">0.95</div>
+            <div class="sc-bar-track"><div class="sc-bar claimed" id="scClaimedBar" style="height:0%"></div></div>
+            <div class="sc-cap">claimed confidence</div>
+          </div>
+          <div class="sc-col">
+            <div class="sc-num" id="scActualNum">0.53</div>
+            <div class="sc-bar-track"><div class="sc-bar actual" id="scActualBar" style="height:0%"></div></div>
+            <div class="sc-cap">actual accuracy</div>
+          </div>
+        </div>
+        <div class="calib-summary-strip bad">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          The LLM claims it's right 95% of the time. It's actually right about 53% of the time. That gap is why self-confidence is useless for routing.
+        </div>
+      </div>
+
+      <div class="card calib-card">
+        <div class="calib-card-head">
+          <h3 style="margin:0;">Blended confidence (production formula)</h3>
+          <span class="calib-tag good">calibration error ≈ 0.11 — trustworthy</span>
+        </div>
+        <div class="bucket-chart" role="img" aria-label="Paired bar chart of claimed confidence versus actual accuracy across four buckets, closely aligned">
+          <div class="bucket-row">
+            <span class="bucket-tag">bucket 0.20</span>
+            <div class="bucket-bars">
+              <div class="bucket-bar-line"><span class="bl-label">claimed</span><div class="bl-track"><div class="bl-fill claimed" data-w="20"></div></div><span class="bl-num mono">0.20</span></div>
+              <div class="bucket-bar-line"><span class="bl-label">actual</span><div class="bl-track"><div class="bl-fill actual" data-w="19"></div></div><span class="bl-num mono">0.19</span></div>
+            </div>
+          </div>
+          <div class="bucket-row">
+            <span class="bucket-tag">bucket 0.48</span>
+            <div class="bucket-bars">
+              <div class="bucket-bar-line"><span class="bl-label">claimed</span><div class="bl-track"><div class="bl-fill claimed" data-w="48"></div></div><span class="bl-num mono">0.48</span></div>
+              <div class="bucket-bar-line"><span class="bl-label">actual</span><div class="bl-track"><div class="bl-fill actual" data-w="38"></div></div><span class="bl-num mono">0.38</span></div>
+            </div>
+          </div>
+          <div class="bucket-row">
+            <span class="bucket-tag">bucket 0.62</span>
+            <div class="bucket-bars">
+              <div class="bucket-bar-line"><span class="bl-label">claimed</span><div class="bl-track"><div class="bl-fill claimed" data-w="62"></div></div><span class="bl-num mono">0.62</span></div>
+              <div class="bucket-bar-line"><span class="bl-label">actual</span><div class="bl-track"><div class="bl-fill actual" data-w="52"></div></div><span class="bl-num mono">0.52</span></div>
+            </div>
+          </div>
+          <div class="bucket-row">
+            <span class="bucket-tag">bucket 0.85</span>
+            <div class="bucket-bars">
+              <div class="bucket-bar-line"><span class="bl-label">claimed</span><div class="bl-track"><div class="bl-fill claimed" data-w="85"></div></div><span class="bl-num mono">0.85</span></div>
+              <div class="bucket-bar-line"><span class="bl-label">actual</span><div class="bl-track"><div class="bl-fill actual" data-w="71"></div></div><span class="bl-num mono">0.71</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="calib-summary-strip good">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+          When the blended score says "62% confident," it's right about 52-62% of the time — claimed and actual track each other. Self-confidence is flat and wrong; blended confidence tracks reality.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 5. TAKEAWAY + QUIZ ============ -->
+  <section id="sec-takeaway">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Takeaway</span>
+    <h2>Same loop, one extra decision</h2>
+
+    <div class="takeaway-card">
+      <p>Classic RAG retrieves and generates; a <b>guarded agentic copilot</b> also decides <b>how much to trust itself</b> (from measured signals, not the model's word) and <b>what to do about it</b> (answer, ask, or escalate) — and can show its work. Internalising <b>calibration</b> alone puts you ahead of most people entering AI/ML.</p>
+      <div class="run-it">
+        <div class="ri-label">Run it yourself</div>
+        <code>uv run python learn/10_calibration_demo.py</code>
+      </div>
+    </div>
+
+    <details class="quiz">
+      <summary>Self-quiz — 3 questions <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></summary>
+      <div class="quiz-body">
+        <div class="quiz-q">
+          <div class="qn">1. Why don't we use the LLM's self-reported confidence, and what do we use instead?</div>
+          <div class="qa">LLMs are miscalibrated (systematically overconfident), so self-confidence doesn't track correctness. We blend observable signals — neighbour agreement, retrieval closeness, LLM-vs-majority consistency, minus a missing-info penalty — into a score that does.</div>
+        </div>
+        <div class="quiz-q">
+          <div class="qn">2. What breaks if you blend dense + sparse retrieval scores without normalizing first?</div>
+          <div class="qa">The larger-magnitude score dominates, so <code class="mono">alpha</code> no longer controls the dense/sparse trade-off; you effectively get single-mode retrieval and lose the hybrid benefit.</div>
+        </div>
+        <div class="quiz-q">
+          <div class="qn">3. Why is "escalate under uncertainty" a feature, not a limitation?</div>
+          <div class="qa">A copilot that hands off when genuinely unsure (or when SLA risk is extreme) avoids confident-but-wrong actions on real operations. Trustworthy behaviour under uncertainty is worth more than always answering.</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+</main>
+
+<footer>QueuePilot learning layer · docs/learn/10-rag-to-guarded-copilot.md · confidence formula sourced from app/analyze/scoring.py</footer>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.js" integrity="sha384-cztVf4nptt4arwI8Ixfn8naubPgxH22BSvA0CuqFUCulIT+dgnb18vSqiZbbPDL1" crossorigin="anonymous"></script>
+<script>
+  // ---------- Icons (decorative diagram icons are hand-authored SVGs above;
+  // this covers any lucide-data-icon elements if used later) ----------
+  if (window.lucide) { lucide.createIcons(); }
+
+  // ---------- Scroll progress ----------
+  (function(){
+    var fill = document.getElementById('progressFill');
+    function onScroll(){
+      var h = document.documentElement;
+      var scrollable = h.scrollHeight - h.clientHeight;
+      var pct = scrollable > 0 ? (h.scrollTop / scrollable) * 100 : 0;
+      fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    }
+    document.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+
+  // ---------- Confidence explorer ----------
+  (function(){
+    var W_AGREEMENT = 0.5, W_SCORE = 0.3, W_CONSISTENCY = 0.2, PENALTY_MISSING = 0.15;
+
+    function sigmoid(x){ return 1 / (1 + Math.exp(-x)); }
+    function clamp01(x){ return Math.min(1, Math.max(0, x)); }
+
+    var agreementEl = document.getElementById('agreement');
+    var topScoreEl = document.getElementById('topScore');
+    var consistencyEl = document.getElementById('consistency');
+    var missingEl = document.getElementById('missing');
+
+    var valAgreement = document.getElementById('valAgreement');
+    var valTopScore = document.getElementById('valTopScore');
+
+    var confValue = document.getElementById('confValue');
+    var decisionPill = document.getElementById('decisionPill');
+    var scaleMarker = document.getElementById('scaleMarker');
+
+    var segAgreement = document.getElementById('segAgreement');
+    var segCloseness = document.getElementById('segCloseness');
+    var segConsistency = document.getElementById('segConsistency');
+    var segPenalty = document.getElementById('segPenalty');
+
+    var lvAgreement = document.getElementById('lvAgreement');
+    var lvCloseness = document.getElementById('lvCloseness');
+    var lvConsistency = document.getElementById('lvConsistency');
+    var lvPenalty = document.getElementById('lvPenalty');
+
+    var iconAnswer = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>';
+    var iconClarify = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><path d="M12 17h.01"/></svg>';
+    var iconEscalate = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+
+    function recompute(){
+      var agreement = parseFloat(agreementEl.value);
+      var topScore = parseFloat(topScoreEl.value);
+      var consistencyOn = consistencyEl.checked;
+      var missingOn = missingEl.checked;
+
+      valAgreement.textContent = agreement.toFixed(2);
+      valTopScore.textContent = topScore.toFixed(2);
+
+      var agreementTerm = W_AGREEMENT * agreement;
+      var closenessTerm = W_SCORE * sigmoid(topScore);
+      var base = agreementTerm + closenessTerm;
+      var consistency = consistencyOn ? W_CONSISTENCY : 0.0;
+      var penalty = missingOn ? PENALTY_MISSING : 0.0;
+      var final = clamp01(base + consistency - penalty);
+
+      // decision logic (confidence-primary): final >= 0.62 -> Answer;
+      // else final < 0.35 -> Escalate; else (missing ? Clarify : Answer)
+      var decision, decisionClass, decisionIcon;
+      if (final >= 0.62) {
+        decision = 'ANSWER'; decisionClass = 'answer'; decisionIcon = iconAnswer;
+      } else if (final < 0.35) {
+        decision = 'ESCALATE'; decisionClass = 'escalate'; decisionIcon = iconEscalate;
+      } else if (missingOn) {
+        decision = 'CLARIFY'; decisionClass = 'clarify'; decisionIcon = iconClarify;
+      } else {
+        decision = 'ANSWER'; decisionClass = 'answer'; decisionIcon = iconAnswer;
+      }
+
+      // Big confidence number
+      confValue.textContent = (final * 100).toFixed(1) + '%';
+      var confColor = decisionClass === 'answer' ? 'var(--green)' : decisionClass === 'clarify' ? 'var(--amber)' : 'var(--red)';
+      confValue.style.color = confColor;
+
+      // Decision pill
+      var pillBg = decisionClass === 'answer' ? 'var(--green-light)' : decisionClass === 'clarify' ? 'var(--amber-light)' : 'var(--red-light)';
+      var pillFg = decisionClass === 'answer' ? 'var(--green)' : decisionClass === 'clarify' ? 'var(--amber)' : 'var(--red)';
+      decisionPill.style.background = pillBg;
+      decisionPill.style.color = pillFg;
+      decisionPill.innerHTML = decisionIcon + '<span>' + decision + '</span>';
+
+      // Marker on scale
+      scaleMarker.style.left = (final * 100) + '%';
+      scaleMarker.style.background = pillFg;
+      scaleMarker.style.setProperty('--marker-color', pillFg);
+
+      // Stacked contribution bar — normalize widths against a fixed 0..1 scale of |value|
+      // total positive extent for scaling bar segment widths within container
+      var maxScale = 1.0; // formula terms live within [0,1] by construction
+      segAgreement.style.width = (Math.max(0, agreementTerm) / maxScale * 100) + '%';
+      segCloseness.style.width = (Math.max(0, closenessTerm) / maxScale * 100) + '%';
+      segConsistency.style.width = (Math.max(0, consistency) / maxScale * 100) + '%';
+      segPenalty.style.width = (Math.max(0, penalty) / maxScale * 100) + '%';
+
+      lvAgreement.textContent = '+' + agreementTerm.toFixed(3);
+      lvCloseness.textContent = '+' + closenessTerm.toFixed(3);
+      lvConsistency.textContent = '+' + consistency.toFixed(3);
+      lvPenalty.textContent = '−' + penalty.toFixed(3);
+    }
+
+    [agreementEl, topScoreEl, consistencyEl, missingEl].forEach(function(el){
+      el.addEventListener('input', recompute);
+      el.addEventListener('change', recompute);
+    });
+
+    recompute();
+  })();
+
+  // ---------- Animate calibration bars on scroll into view ----------
+  (function(){
+    var animated = false;
+    function animateSelfConf(){
+      document.getElementById('scClaimedBar').style.transition = 'height 700ms cubic-bezier(.2,.8,.2,1)';
+      document.getElementById('scActualBar').style.transition = 'height 700ms cubic-bezier(.2,.8,.2,1) 120ms';
+      requestAnimationFrame(function(){
+        document.getElementById('scClaimedBar').style.height = '95%';
+        document.getElementById('scActualBar').style.height = '53%';
+      });
+    }
+    function animateBuckets(){
+      document.querySelectorAll('.bl-fill').forEach(function(el, i){
+        var w = el.getAttribute('data-w');
+        el.style.transition = 'width 600ms cubic-bezier(.2,.8,.2,1) ' + (i * 40) + 'ms';
+        requestAnimationFrame(function(){ el.style.width = w + '%'; });
+      });
+    }
+    var target = document.getElementById('sec-calibration');
+    if ('IntersectionObserver' in window) {
+      var obs = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if (entry.isIntersecting && !animated) {
+            animated = true;
+            animateSelfConf();
+            animateBuckets();
+            obs.disconnect();
+          }
+        });
+      }, { threshold: 0.25 });
+      obs.observe(target);
+    } else {
+      animateSelfConf();
+      animateBuckets();
+    }
+  })();
+</script>
+
+</body>
+</html>
