@@ -6,7 +6,8 @@ Approved design pass for Milestone **M-C**. Build order maps to the C1–C9 outl
 ## Purpose
 Give the guarded copilot a face and a flight recorder: a single-page console for exercising
 `/analyze` by hand, an opt-out `--explain` debug mode that surfaces *why* the graph decided what it
-decided, and live LangSmith tracing on every run — all behind the same `03-API-CONTRACT.md` envelope.
+decided, and opt-in LangSmith tracing (`LANGSMITH_TRACING=true` + an API key) — all behind the same
+`03-API-CONTRACT.md` envelope.
 
 ## Frontend
 **Choice (D13):** Vite + React + TypeScript + Tailwind + shadcn/ui, built to static assets and
@@ -20,13 +21,14 @@ component work (C5, and the UI-wiring half of C6) does not start until that desi
 Backend surfaces for Slice C (tracing, `--explain`) are not blocked by this and proceed independently.
 
 ## Tracing
-LangSmith runs **live, full-trace**, on every `/analyze` call — no opt-in flag. The raw Groq client
-calls inside the chat-model registry (`app/providers/chat.py`, D12) are wrapped with `@traceable` so
-each graph node's LLM call shows up as a nested run in the LangSmith UI.
+LangSmith tracing is **active only when both `LANGSMITH_TRACING=true` AND a `LANGSMITH_API_KEY` are
+set** — it is not live on every call by default. When both are configured, the `GraphAnalyzer.analyze`
+call (and, via `@traceable`, the underlying graph-node/LLM calls) is traced and shows up as a run in
+the LangSmith UI. "Live in the demo" means setting both env vars before starting the server.
 
-**Graceful no-op:** if `LANGSMITH_API_KEY` is unset, tracing is skipped entirely — `@traceable`
-becomes a pass-through and the endpoint behaves exactly as before. No error, no latency penalty
-beyond the wrapped call itself.
+**Graceful no-op:** if tracing is off (either var unset/false), the endpoint behaves exactly as
+before — `@traceable`/`tracing_context` become pass-throughs and the response's `trace` field is
+`{"enabled": false}`. No error, no latency penalty beyond the wrapped call itself.
 
 `trace` payload shape (unchanged from `03-API-CONTRACT.md`'s reservation, now filled):
 ```python
@@ -52,16 +54,22 @@ live LangSmith needed) and decoupled from whether tracing is enabled.
 `debug` payload shape (new field, null unless `?explain=true`):
 ```python
 debug: dict | None = {
-    "steps": list[dict],     # one entry per graph node, in execution order
-    # each entry: {"node": str, "summary": str, "data": dict}
+    "nodes": list[dict],       # one entry per graph node that recorded reasoning, in run order
+    # each entry: {"name": str, "rationale": str}
+    "retrieval": list[dict],   # one entry per retrieved neighbor
+    # each entry: {"score": float, "queue": str, "priority": str, "type": str, "snippet": str}
+    "confidence_breakdown": dict,  # full_confidence_breakdown(...) intermediate terms
+    "sla_breakdown": dict,         # sla_risk_breakdown(...) intermediate terms
+    "decision": str,               # decide-router branch taken (e.g. "answer" / "clarify" / "escalate")
 }
 ```
 
 ## Envelope mapping
-`03-API-CONTRACT.md`'s reserved `trace` field is now populated by the tracing wrapper described
-above on every call, independent of `--explain`. The new `debug` field (D14) is populated only when
-`?explain=true` is passed, from the `TicketState` accumulator, and stays `None` otherwise. Both are
-strictly additive — no existing field changes shape or meaning. **No API break.**
+`03-API-CONTRACT.md`'s reserved `trace` field is now populated on every call, independent of
+`--explain` — its `enabled` flag reflects whether tracing is actually configured (see Tracing
+above), and is `{"enabled": false}` when it isn't. The new `debug` field (D14) is populated only
+when `?explain=true` is passed, from the `TicketState` accumulator, and stays `None` otherwise.
+Both are strictly additive — no existing field changes shape or meaning. **No API break.**
 
 ## Build order
 - **C1** LangSmith wiring: env-driven client init, `@traceable` on the chat-model registry calls,
@@ -73,10 +81,10 @@ strictly additive — no existing field changes shape or meaning. **No API break
 - **C5** ⏸️ *paused (UI-design hold)* — Vite/React/Tailwind/shadcn scaffold, built to static assets.
 - **C6** FastAPI static-asset mount for the built console — **backend wiring only** ships now; the
   UI half that actually renders results ⏸️ *paused (UI-design hold)*.
-- **C7** 📚 tracing concept doc + runnable script + self-quiz (`docs/learn/06-tracing.md` /
-  `learn/06_tracing.py` — LEARNING-LOG already reserves these slots).
+- **C7** 📚 tracing concept doc + runnable script + self-quiz (`docs/learn/08-langsmith-tracing.md` /
+  `learn/08_langsmith_tracing.py` — LEARNING-LOG already reserves these slots).
 - **C8** 📚 explainability concept doc + runnable script + self-quiz
-  (`docs/learn/07-explainability.md` / `learn/07_explainability.py`).
+  (`docs/learn/09-explainability.md` / `learn/09_explainability.py`).
 - **C9** tests: `trace` no-op path, `debug` populated/absent paths, mocked-chat offline coverage +
   gated live LangSmith integration test.
 

@@ -14,6 +14,7 @@ Safety contract:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from functools import lru_cache
 from typing import Any
@@ -24,11 +25,31 @@ from langsmith.run_helpers import get_current_run_tree
 from app.analyze.baseline import Analyzer
 from app.analyze.graph import TicketState, build_default_graph
 from app.analyze.trace import build_trace_summary
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.retrieval.hybrid import to_similar_tickets
 from app.schemas import AnalyzeResponse
 
 _logger = logging.getLogger(__name__)
+
+
+def _ensure_langsmith_env(settings: Settings) -> None:
+    """Export LangSmith config from ``Settings`` (pydantic-settings/.env) to ``os.environ``.
+
+    The ``langsmith`` SDK reads its configuration directly from the process environment
+    (``LANGSMITH_TRACING`` / ``LANGSMITH_API_KEY`` / ``LANGSMITH_PROJECT`` /
+    ``LANGSMITH_ENDPOINT``), not from our ``Settings`` object — so a ``.env``-only value
+    would otherwise never reach the SDK. This is a no-op when tracing is off, and never
+    raises (missing values are simply skipped).
+    """
+    if not settings.langsmith_tracing:
+        return
+    os.environ["LANGSMITH_TRACING"] = "true"
+    if settings.langsmith_api_key:
+        os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+    if settings.langsmith_project:
+        os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+    if settings.langsmith_endpoint:
+        os.environ["LANGSMITH_ENDPOINT"] = settings.langsmith_endpoint
 
 
 class GraphAnalyzer:
@@ -81,6 +102,7 @@ class GraphAnalyzer:
             (Slice C) — ``{"enabled": False}`` when tracing is off or no key is set.
         """
         settings = get_settings()
+        _ensure_langsmith_env(settings)
         tracing_enabled = bool(settings.langsmith_tracing and settings.langsmith_api_key)
 
         captured: dict[str, Any] = {}
@@ -105,7 +127,8 @@ class GraphAnalyzer:
                 "GraphAnalyzer.analyze: graph.invoke raised an exception; "
                 "falling back to Slice A Analyzer"
             )
-            return Analyzer.from_settings().analyze(text)
+            fallback = Analyzer.from_settings().analyze(text)
+            return fallback.model_copy(update={"trace": {"enabled": False}, "debug": None})
         latency_ms = (time.perf_counter() - start) * 1000.0
 
         try:

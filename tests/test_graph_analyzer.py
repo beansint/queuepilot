@@ -12,12 +12,14 @@ Covers:
 
 from __future__ import annotations
 
+import os
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.analyze.graph_analyzer import GraphAnalyzer
+from app.analyze.graph_analyzer import GraphAnalyzer, _ensure_langsmith_env
+from app.config import Settings
 from app.retrieval.pinecone_store import Neighbor
 from app.schemas import AnalyzeResponse
 
@@ -320,3 +322,86 @@ def test_analyze_confidence_clamped_below_zero(monkeypatch: pytest.MonkeyPatch) 
 
     result = GraphAnalyzer(graph=fake_graph).analyze("test")
     assert result.confidence >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Fallback trace shape (documented {"enabled": False}, not None)
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_fallback_trace_shape_documented(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On graph failure, the fallback response's trace/debug match the documented shape.
+
+    The Slice A ``Analyzer`` doesn't populate ``trace``/``debug`` at all (they default to
+    ``None`` on ``AnalyzeResponse``); the fallback path must still return the documented
+    ``trace={"enabled": False}`` / ``debug=None`` shape rather than leaking a bare ``None``.
+    """
+    fallback_response = AnalyzeResponse(
+        category="fallback-category",
+        queue="fallback-queue",
+        priority="low",
+        confidence=0.3,
+        similar_tickets=[],
+    )
+    assert fallback_response.trace is None  # sanity: Slice A Analyzer leaves trace unset
+
+    class _FakeAnalyzer:
+        def analyze(self, text: str) -> AnalyzeResponse:
+            return fallback_response
+
+    monkeypatch.setattr(
+        "app.analyze.graph_analyzer.Analyzer.from_settings",
+        staticmethod(lambda: _FakeAnalyzer()),
+    )
+
+    fake_graph = MagicMock()
+    fake_graph.invoke.side_effect = RuntimeError("Groq is down")
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("cannot connect to vpn")
+
+    assert result.trace == {"enabled": False}
+    assert result.debug is None
+
+
+# ---------------------------------------------------------------------------
+# LangSmith env export (C3)
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_langsmith_env_exports_when_tracing_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When tracing is on, Settings values are exported to os.environ for the SDK."""
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
+    monkeypatch.delenv("LANGSMITH_ENDPOINT", raising=False)
+
+    settings = Settings(
+        langsmith_tracing=True,
+        langsmith_api_key="fake-key",
+        langsmith_project="queuepilot-test",
+        langsmith_endpoint="https://example.invalid",
+    )
+
+    _ensure_langsmith_env(settings)
+
+    assert os.environ["LANGSMITH_TRACING"] == "true"
+    assert os.environ["LANGSMITH_API_KEY"] == "fake-key"
+    assert os.environ["LANGSMITH_PROJECT"] == "queuepilot-test"
+    assert os.environ["LANGSMITH_ENDPOINT"] == "https://example.invalid"
+
+
+def test_ensure_langsmith_env_noop_when_tracing_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When tracing is off, no environment variables are touched."""
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+
+    settings = Settings(langsmith_tracing=False, langsmith_api_key="fake-key")
+
+    _ensure_langsmith_env(settings)
+
+    assert "LANGSMITH_TRACING" not in os.environ
+    assert "LANGSMITH_API_KEY" not in os.environ

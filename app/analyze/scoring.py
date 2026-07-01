@@ -58,6 +58,9 @@ def full_confidence(
         penalty     = PENALTY_MISSING if missing_count > 0 else 0.0
         return      clamp01(base + consistency - penalty)
 
+    ``full_confidence_breakdown`` is the single source of truth for this computation;
+    this is a thin wrapper that returns just the final value.
+
     Args:
         top_score:      Hybrid retrieval score of the top-ranked neighbor.
         agreement:      Fraction of neighbors that share the winning queue (from majority_vote).
@@ -68,18 +71,11 @@ def full_confidence(
     Returns:
         Float clamped to ``[0.0, 1.0]``.
     """
-    base = W_AGREEMENT * agreement + W_SCORE * _sigmoid(top_score)
-    consistency = (
-        W_CONSISTENCY
-        if (
-            llm_queue is not None
-            and majority_queue is not None
-            and llm_queue == majority_queue
-        )
-        else 0.0
+    return float(
+        full_confidence_breakdown(top_score, agreement, llm_queue, majority_queue, missing_count)[
+            "final"
+        ]
     )
-    penalty = PENALTY_MISSING if missing_count > 0 else 0.0
-    return _clamp01(base + consistency - penalty)
 
 
 def full_confidence_breakdown(
@@ -91,9 +87,9 @@ def full_confidence_breakdown(
 ) -> dict[str, Any]:
     """Same computation as ``full_confidence`` but returns every intermediate term.
 
-    Used by the ``score`` node's ``--explain`` accumulator (C4). Kept as a sibling
-    function (rather than changing ``full_confidence``'s return type) so existing
-    callers/tests of ``full_confidence`` are unaffected.
+    Used by the ``score`` node's ``--explain`` accumulator (C4). This is the single
+    source of truth for the confidence formula; ``full_confidence`` is a thin wrapper
+    around ``["final"]``.
 
     Returns:
         A dict with ``agreement``, ``top_score``, ``sigmoid_top_score``, ``consistency``,
@@ -141,6 +137,9 @@ def sla_risk(
                        + SLA_W_FRUSTRATION * frustration
                        + SLA_W_MISSING * (1.0 if has_missing else 0.0))
 
+    ``sla_risk_breakdown`` is the single source of truth for this computation; this is
+    a thin wrapper that returns just the final value.
+
     Args:
         priority:    Ticket priority label (case-insensitive; "high" / "medium" / "low").
         frustration: Customer frustration score in [0.0, 1.0] from the sentiment node.
@@ -149,12 +148,7 @@ def sla_risk(
     Returns:
         Float clamped to ``[0.0, 1.0]``.
     """
-    pw = _PRIORITY_WEIGHTS.get((priority or "").lower(), 0.5)
-    return _clamp01(
-        SLA_W_PRIORITY * pw
-        + SLA_W_FRUSTRATION * frustration
-        + SLA_W_MISSING * (1.0 if has_missing else 0.0)
-    )
+    return float(sla_risk_breakdown(priority, frustration, has_missing)["final"])
 
 
 def sla_risk_breakdown(
@@ -164,8 +158,9 @@ def sla_risk_breakdown(
 ) -> dict[str, Any]:
     """Same computation as ``sla_risk`` but returns every intermediate term.
 
-    Used by the ``score`` node's ``--explain`` accumulator (C4). Kept as a sibling
-    function so ``sla_risk`` itself is unchanged (backward-compatible with existing tests).
+    Used by the ``score`` node's ``--explain`` accumulator (C4). This is the single
+    source of truth for the SLA-risk formula; ``sla_risk`` is a thin wrapper around
+    ``["final"]``.
 
     Returns:
         A dict with ``priority``, ``priority_weight``, ``frustration``, ``has_missing``,

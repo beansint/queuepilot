@@ -93,9 +93,12 @@ def _register_frontend_routes(fastapi_app: FastAPI) -> None:
         fastapi_app.mount("/", StaticFiles(directory=_FRONTEND_DIST, html=True), name="frontend")
         return
 
-    # No build present (e.g. CI/tests) — serve a graceful placeholder everywhere else.
-    @fastapi_app.get("/{full_path:path}", include_in_schema=False)
-    def _frontend_placeholder(full_path: str) -> HTMLResponse:
+    # No build present (e.g. CI/tests) — serve a graceful placeholder at root only.
+    # Deliberately NOT a `{full_path:path}` catch-all: that would greedily match every
+    # GET request (including GET on POST-only endpoints like /analyze), shadowing
+    # FastAPI's normal 404/405 handling for unmatched routes.
+    @fastapi_app.get("/", include_in_schema=False)
+    def _frontend_placeholder() -> HTMLResponse:
         return HTMLResponse(content=_PLACEHOLDER_HTML, status_code=200)
 
 
