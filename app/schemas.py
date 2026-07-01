@@ -59,3 +59,6 @@ class AnalyzeResponse(BaseModel):
     clarification: list[str] | None = None
     suggested_reply: str | None = None
     trace: dict[str, Any] | None = None
+
+    # --- reserved; None until Slice C, and only populated when ?explain=true ---
+    debug: dict[str, Any] | None = None

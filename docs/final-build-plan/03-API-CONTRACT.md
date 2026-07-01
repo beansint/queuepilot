@@ -15,6 +15,11 @@ class AnalyzeRequest(BaseModel):
     metadata: dict | None = None      # optional passthrough (channel, locale, etc.)
 ```
 
+### Query params
+- `explain` (`bool`, default `false`) — **C**. `POST /analyze?explain=true` opt-in debug mode;
+  populates the response `debug` field from an in-app `TicketState` accumulator. Off by default;
+  absent or `false` behaves exactly as before (`debug` stays `null`).
+
 ### Response — `AnalyzeResponse`
 ```python
 class SimilarTicket(BaseModel):
@@ -39,14 +44,21 @@ class AnalyzeResponse(BaseModel):
     clarification: list[str] | None = None # B
     suggested_reply: str | None = None    # B
     trace: dict | None = None             # C: LangSmith run summary
+    debug: dict | None = None             # C: --explain payload (null unless ?explain=true)
 ```
+
+`trace` is a LangSmith run summary populated on **every** call once Slice C's tracing lands
+(`{enabled, run_id, url, latency_ms, project}`, D-tracing design in `09-SLICE-C-DESIGN.md`) —
+`enabled: false` with the rest `None` when no LangSmith key is configured. `debug` (D14) is a
+separate, in-app reasoning trail populated only when the request is made with `?explain=true`;
+it does not depend on LangSmith being configured.
 
 ### Field ownership by slice
 | Field | Populated in |
 |---|---|
 | category, queue, priority, confidence, similar_tickets | **A** |
 | sentiment, sla_risk, escalate, clarification, suggested_reply | **B** |
-| trace | **C** |
+| trace, debug | **C** |
 
 ### Errors
 - `422` — validation failure (missing `text`, or `len(text) > MAX_INPUT_CHARS`).

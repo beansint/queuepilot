@@ -82,3 +82,35 @@ OpenAI (`gpt-oss-20b`, gpt-4o-mini) remain drop-ins.
 **Considered:** Gemini Flash-Lite (reuse key), OpenAI gpt-4o-mini (job-box).
 **Why:** free + fastest inference (Groq LPU) for a demo; strong at the classification + short
 generation the workflow needs; registry keeps the others provable drop-ins. Embeddings stay on Voyage.
+
+---
+
+All decisions below: **2026-07-01**.
+
+### D13 — Frontend: Vite/React/Tailwind/shadcn console served by FastAPI (refines 01)
+**Date:** 2026-07-01.
+**Choice:** the Slice C console is a Vite + React + TypeScript + Tailwind + shadcn/ui SPA, built to
+static assets and served by the **same FastAPI app** (`01-TECH-STACK-LOCKED.md`'s "App shell" row).
+**Considered:** vanilla HTML/JS dashboard (matches "minimal dashboard" wording in `01` literally, but
+too thin for a portfolio-grade UI); a separate Next.js app on Vercel (nicer DX, but splits the
+deploy into two origins/hosts).
+**Why:** a real component-driven UI closes the "no working frontend" gap for a portfolio project
+without abandoning D10 — the built static assets still ship inside the one Dockerized FastAPI
+container, so there's still exactly one deploy target. Keeping it same-origin also avoids
+cross-origin cookie complications when Slice E's signed HTTP-only cookie auth lands. This refines,
+not contradicts, `01`'s "App shell" row — "minimal dashboard" becomes "Vite/React/shadcn console,
+same app serves UI + API." **Build is paused pending a dedicated UI-design session; the direction is
+locked now so backend work (tracing, `--explain`) isn't blocked.**
+
+### D14 — `debug` response field for `--explain` (extends 03)
+**Date:** 2026-07-01.
+**Choice:** add a new reserved, optional field to `AnalyzeResponse`: `debug: dict | None = None`,
+populated only when the request is made with `?explain=true`; `None` otherwise. The existing `trace`
+field is unchanged — it stays exactly as `03-API-CONTRACT.md` already specified (a LangSmith run
+summary), populated on every call once Slice C's tracing wiring lands, independent of `--explain`.
+**Considered:** folding explain output into `trace` (rejected — conflates "is this run traced in
+LangSmith" with "give me the in-app reasoning trail," which have different audiences, different
+data sources, and different availability, e.g. `debug` must work with zero LangSmith key).
+**Why:** consistent with `03`'s reserved-field, forward-compatible envelope design (D-philosophy of
+additive-only fields) — old callers see `debug: null` and are unaffected; `--explain` consumers get a
+self-contained, offline-testable reasoning trail without depending on LangSmith being configured.

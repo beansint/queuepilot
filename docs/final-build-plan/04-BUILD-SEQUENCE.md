@@ -34,13 +34,41 @@ Branch `slice-a-foundation`. Tasks are ordered; deps noted. 📚 = ships a learn
 
 ---
 
-## Slices B–E (epics; expand into tasks when started)
+## Slices B, D, E (epics; expand into tasks when started)
 
 | Slice | Milestone | GH | Linear | Outcome |
 |---|---|---|---|---|
 | B — Agentic Workflow | M-B | #11 | BEA-138 | LangGraph state machine behind `/analyze`; full envelope. |
-| C — Dashboard + Observability | M-C | #12 | BEA-139 | Console + opt-out `--explain` + LangSmith tracing. |
 | D — Evaluation | M-D | #13 | BEA-140 | LangSmith offline + online eval, experiments, feedback. |
 | E — Deploy & Harden | M-E | #14 | BEA-141 | Docker → Render, invite-code auth, rate limiting. |
 
 When starting a slice, expand its epic into task issues in **both** trackers and add a task table here.
+
+---
+
+## Slice C — Dashboard + Observability (M-C)
+Branch `slice-c-dashboard`. Epic `#12` / `BEA-139`. Tasks ordered; deps noted. 📚 = ships a learning
+artifact. Design detail: `09-SLICE-C-DESIGN.md`.
+
+| ID | Task | GH | Linear | Deps |
+|---|---|---|---|---|
+| <a id="c1"></a>C1 | LangSmith wiring: env-driven client, `@traceable` on chat-model registry calls, graceful no-op without a key | #12 | BEA-139 | — |
+| <a id="c2"></a>C2 | `trace` payload assembly (`enabled, run_id, url, latency_ms, project`) wired into `/analyze` response | #12 | BEA-139 | C1 |
+| <a id="c3"></a>C3 | `TicketState` accumulator: each graph node appends a `{node, summary, data}` step | #12 | BEA-139 | — |
+| <a id="c4"></a>C4 | `?explain` query param on `POST /analyze`; `debug` field populated from the accumulator, `null` otherwise | #12 | BEA-139 | C3 |
+| <a id="c5"></a>C5 ⏸️ | *(paused — UI-design hold)* Vite/React/TypeScript/Tailwind/shadcn console scaffold, built to static assets | TBD | TBD | — |
+| <a id="c6"></a>C6 | FastAPI static-asset mount for the built console — **backend wiring ships now**; UI half that renders results ⏸️ *(paused — UI-design hold)* | TBD | TBD | C5 |
+| <a id="c7"></a>C7 📚 | Tracing concept doc + runnable script + self-quiz (`docs/learn/06-tracing.md` / `learn/06_tracing.py`) | TBD | TBD | C2 |
+| <a id="c8"></a>C8 📚 | Explainability concept doc + runnable script + self-quiz (`docs/learn/07-explainability.md` / `learn/07_explainability.py`) | TBD | TBD | C4 |
+| <a id="c9"></a>C9 | Tests: `trace` no-op path, `debug` populated/absent paths, mocked-chat offline coverage + gated live LangSmith integration test | TBD | TBD | C2,C4 |
+
+### Slice C exit criteria
+- Every `/analyze` call carries a `trace` summary (`enabled: false` gracefully when no LangSmith key
+  is configured); LangSmith UI shows nested runs for chat-model calls when a key is present.
+- `POST /analyze?explain=true` returns a populated `debug.steps` reasoning trail; default calls keep
+  `debug: null`. No change to existing response shape for callers that don't pass `explain`.
+- Every 📚 task has doc + runnable script + self-quiz, logged in `LEARNING-LOG.md`.
+- Tests green (including the offline `--explain` + tracing-no-op paths); `main` clean via
+  squash-merged PR.
+- Console (C5, UI half of C6) explicitly **not** required for exit — tracked separately, resumes
+  after the UI-design session.

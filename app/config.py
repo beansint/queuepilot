@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     corpus_cap: int = 3000
     hybrid_alpha: float = 0.5
 
+    # --- Observability (Slice C; LangSmith tracing — D-series) ---
+    # Names line up with the langsmith SDK's own env vars (LANGSMITH_TRACING,
+    # LANGSMITH_API_KEY, LANGSMITH_PROJECT, LANGSMITH_ENDPOINT) so pydantic-settings
+    # and the langsmith SDK read the same env values without duplication.
+    langsmith_tracing: bool = False
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "queuepilot"
+    langsmith_endpoint: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

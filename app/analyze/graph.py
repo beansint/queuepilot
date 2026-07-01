@@ -27,7 +27,7 @@ from typing import Any, TypedDict, cast
 from langgraph.graph import END, START, StateGraph
 
 from app.analyze.baseline import majority_vote
-from app.analyze.scoring import full_confidence, sla_risk
+from app.analyze.scoring import full_confidence_breakdown, sla_risk_breakdown
 from app.config import get_settings
 from app.providers.chat import ChatModel
 from app.providers.embeddings import Embedder
@@ -125,6 +125,13 @@ class TicketState(TypedDict, total=False):
     suggested_reply: str | None
     escalate: bool
 
+    # --- --explain accumulator (Slice C, C4) — in-app only, never reconstructed
+    # from LangSmith. ``reasoning`` is merged by each LLM node (LangGraph overwrites
+    # by key, so each node reads the existing dict and returns the merged copy).
+    reasoning: dict[str, str]
+    confidence_breakdown: dict[str, Any]
+    sla_breakdown: dict[str, Any]
+
 
 # ---------------------------------------------------------------------------
 # Pure routing helper (importable without instantiating the graph)
@@ -185,6 +192,16 @@ def build_graph(
     """
     effective_alpha = alpha if alpha is not None else get_settings().hybrid_alpha
 
+    def _with_reasoning(state: TicketState, node: str, rationale: str) -> dict[str, str]:
+        """Merge a node's rationale into the ``reasoning`` accumulator (--explain, C4).
+
+        LangGraph overwrites state by key, so each node reads the existing dict off
+        state and returns the merged copy rather than a bare ``{node: rationale}``.
+        """
+        reasoning = dict(state.get("reasoning") or {})
+        reasoning[node] = rationale
+        return reasoning
+
     # ------------------------------------------------------------------
     # Node: retrieve (Slice A hybrid retrieval — no LLM)
     # ------------------------------------------------------------------
@@ -218,15 +235,30 @@ def build_graph(
             )
             user = f"Ticket:\n{text}\n\nSimilar tickets:\n{hints or '(none retrieved)'}"
             result = chat_model.complete_json(CLASSIFY_SYSTEM, user)
+            rationale = (
+                f"LLM classified category={result.get('category')!r} "
+                f"queue={result.get('queue')!r} priority={result.get('priority')!r} "
+                f"from {len(neighbors)} retrieved neighbor(s)."
+            )
             return {
                 "category": result.get("category"),
                 "queue": result.get("queue"),
                 "priority": result.get("priority"),
+                "reasoning": _with_reasoning(state, "classify", rationale),
             }
         except Exception:
             _logger.exception("classify node: LLM call failed; falling back to majority_vote")
             fb_queue, fb_priority, fb_category, _ = majority_vote(neighbors)
-            return {"category": fb_category, "queue": fb_queue, "priority": fb_priority}
+            rationale = (
+                "LLM call failed; fell back to majority_vote over retrieved neighbors "
+                f"(queue={fb_queue!r})."
+            )
+            return {
+                "category": fb_category,
+                "queue": fb_queue,
+                "priority": fb_priority,
+                "reasoning": _with_reasoning(state, "classify", rationale),
+            }
 
     # ------------------------------------------------------------------
     # Node: sentiment (B6) — LLM scores frustration + negativity
@@ -245,10 +277,19 @@ def build_graph(
             # Clamp both scores to [0, 1] in case the model returns out-of-range values.
             frustration = max(0.0, min(1.0, frustration))
             negativity = max(0.0, min(1.0, negativity))
-            return {"sentiment": {"frustration": frustration, "negativity": negativity}}
+            rationale = f"LLM scored frustration={frustration:.2f} negativity={negativity:.2f}."
+            return {
+                "sentiment": {"frustration": frustration, "negativity": negativity},
+                "reasoning": _with_reasoning(state, "sentiment", rationale),
+            }
         except Exception:
             _logger.exception("sentiment node: LLM call failed; returning None")
-            return {"sentiment": None}
+            return {
+                "sentiment": None,
+                "reasoning": _with_reasoning(
+                    state, "sentiment", "LLM call failed; sentiment=None."
+                ),
+            }
 
     # ------------------------------------------------------------------
     # Node: assess_missing (B5) — LLM lists missing ticket details
@@ -264,12 +305,26 @@ def build_graph(
             result = chat_model.complete_json(ASSESS_MISSING_SYSTEM, text)
             raw = result.get("missing_info", [])
             if not isinstance(raw, list):
-                return {"missing_info": []}
+                return {
+                    "missing_info": [],
+                    "reasoning": _with_reasoning(
+                        state, "assess_missing", "LLM returned non-list missing_info; using []."
+                    ),
+                }
             missing: list[str] = [str(item) for item in raw if isinstance(item, str)]
-            return {"missing_info": missing}
+            rationale = f"LLM flagged {len(missing)} missing detail(s): {missing}."
+            return {
+                "missing_info": missing,
+                "reasoning": _with_reasoning(state, "assess_missing", rationale),
+            }
         except Exception:
             _logger.exception("assess_missing node: LLM call failed; returning empty list")
-            return {"missing_info": []}
+            return {
+                "missing_info": [],
+                "reasoning": _with_reasoning(
+                    state, "assess_missing", "LLM call failed; missing_info=[]."
+                ),
+            }
 
     # ------------------------------------------------------------------
     # Node: score (B7) — deterministic confidence + SLA risk, no LLM
@@ -293,9 +348,20 @@ def build_graph(
         priority: str | None = state.get("priority")
         has_missing = missing_count > 0
 
-        conf = full_confidence(top_score, agreement, llm_queue, maj_queue, missing_count)
-        risk = sla_risk(priority, frustration, has_missing)
-        return {"confidence": conf, "sla_risk": risk}
+        conf_breakdown = full_confidence_breakdown(
+            top_score, agreement, llm_queue, maj_queue, missing_count
+        )
+        risk_breakdown = sla_risk_breakdown(priority, frustration, has_missing)
+        conf = conf_breakdown["final"]
+        risk = risk_breakdown["final"]
+        rationale = f"confidence={conf:.3f} sla_risk={risk:.3f} (see confidence/sla breakdowns)."
+        return {
+            "confidence": conf,
+            "sla_risk": risk,
+            "confidence_breakdown": conf_breakdown,
+            "sla_breakdown": risk_breakdown,
+            "reasoning": _with_reasoning(state, "score", rationale),
+        }
 
     # ------------------------------------------------------------------
     # Node: decide (B8) — conditional routing (guarded copilot)
@@ -331,10 +397,19 @@ def build_graph(
             )
             user = f"Ticket:\n{text}\n\nSimilar resolved cases:\n{snippets or '(none)'}"
             reply = chat_model.complete(DRAFT_REPLY_SYSTEM, user)
-            return {"suggested_reply": reply}
+            rationale = f"LLM drafted a reply grounded in top {min(3, len(neighbors))} neighbor(s)."
+            return {
+                "suggested_reply": reply,
+                "reasoning": _with_reasoning(state, "draft_reply", rationale),
+            }
         except Exception:
             _logger.exception("draft_reply node: LLM call failed; returning None")
-            return {"suggested_reply": None}
+            return {
+                "suggested_reply": None,
+                "reasoning": _with_reasoning(
+                    state, "draft_reply", "LLM call failed; suggested_reply=None."
+                ),
+            }
 
     # ------------------------------------------------------------------
     # Node: clarify (B9) — LLM generates clarifying questions (clarify branch)
@@ -356,12 +431,26 @@ def build_graph(
             if isinstance(raw, list):
                 questions: list[str] = [str(q) for q in raw if q]
                 if questions:
-                    return {"clarification": questions}
+                    rationale = f"LLM generated {len(questions)} clarifying question(s)."
+                    return {
+                        "clarification": questions,
+                        "reasoning": _with_reasoning(state, "clarify", rationale),
+                    }
             # Response was valid JSON but missing the expected key/shape — use fallback.
-            return {"clarification": [f"Could you provide: {item}?" for item in missing]}
+            return {
+                "clarification": [f"Could you provide: {item}?" for item in missing],
+                "reasoning": _with_reasoning(
+                    state, "clarify", "LLM response missing expected shape; used fallback Qs."
+                ),
+            }
         except Exception:
             _logger.exception("clarify node: LLM call failed; falling back to missing_info Qs")
-            return {"clarification": [f"Could you provide: {item}?" for item in missing] or []}
+            return {
+                "clarification": [f"Could you provide: {item}?" for item in missing] or [],
+                "reasoning": _with_reasoning(
+                    state, "clarify", "LLM call failed; used fallback missing_info questions."
+                ),
+            }
 
     # ------------------------------------------------------------------
     # Wire edges:

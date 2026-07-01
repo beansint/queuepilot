@@ -28,3 +28,13 @@ data/artifacts/
 
 # Claude Code internal worktrees/state
 .claude/
+
+# Playwright MCP scratch artifacts
+.playwright-mcp/
+
+# UI design exploration mockups (chosen spec lands with the Slice C frontend build)
+design/
+
+# Frontend build + deps (source lives in frontend/, dist built in Docker for Slice E)
+frontend/node_modules/
+frontend/dist/

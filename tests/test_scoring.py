@@ -26,7 +26,9 @@ from app.analyze.scoring import (
     PENALTY_MISSING,
     W_CONSISTENCY,
     full_confidence,
+    full_confidence_breakdown,
     sla_risk,
+    sla_risk_breakdown,
 )
 
 # ---------------------------------------------------------------------------
@@ -203,3 +205,47 @@ def test_sla_risk_exact_formula_high_with_missing() -> None:
     # = clamp01(0.5*1.0 + 0.3*0.5 + 0.2*1.0) = clamp01(0.5 + 0.15 + 0.2) = clamp01(0.85) = 0.85
     risk = sla_risk("high", 0.5, True)
     assert risk == pytest.approx(0.85, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# C4 — breakdown siblings (--explain accumulator)
+# ---------------------------------------------------------------------------
+
+
+def test_full_confidence_breakdown_final_matches_full_confidence() -> None:
+    """full_confidence_breakdown()['final'] agrees with full_confidence() for the same inputs."""
+    args = (0.5, 0.7, "IT", "IT", 1)
+    assert full_confidence_breakdown(*args)["final"] == pytest.approx(full_confidence(*args))
+
+
+def test_full_confidence_breakdown_exposes_all_terms() -> None:
+    """Breakdown includes every intermediate term and weight constant used."""
+    breakdown = full_confidence_breakdown(0.0, 0.5, "IT", "IT", 0)
+    assert breakdown["agreement"] == pytest.approx(0.5)
+    assert breakdown["top_score"] == pytest.approx(0.0)
+    assert breakdown["sigmoid_top_score"] == pytest.approx(0.5, abs=1e-6)
+    assert breakdown["consistency"] == pytest.approx(W_CONSISTENCY)
+    assert breakdown["penalty"] == pytest.approx(0.0)
+    assert 0.0 <= breakdown["final"] <= 1.0
+    assert {"w_agreement", "w_score", "w_consistency", "penalty_missing"} <= breakdown.keys()
+
+
+def test_full_confidence_breakdown_penalty_applied_when_missing() -> None:
+    breakdown = full_confidence_breakdown(0.5, 0.5, None, None, 3)
+    assert breakdown["penalty"] == pytest.approx(PENALTY_MISSING)
+
+
+def test_sla_risk_breakdown_final_matches_sla_risk() -> None:
+    """sla_risk_breakdown()['final'] agrees with sla_risk() for the same inputs."""
+    args = ("high", 0.4, True)
+    assert sla_risk_breakdown(*args)["final"] == pytest.approx(sla_risk(*args))
+
+
+def test_sla_risk_breakdown_exposes_all_terms() -> None:
+    breakdown = sla_risk_breakdown("low", 0.2, False)
+    assert breakdown["priority"] == "low"
+    assert breakdown["priority_weight"] == pytest.approx(0.2)
+    assert breakdown["frustration"] == pytest.approx(0.2)
+    assert breakdown["has_missing"] is False
+    assert 0.0 <= breakdown["final"] <= 1.0
+    assert {"w_priority", "w_frustration", "w_missing"} <= breakdown.keys()

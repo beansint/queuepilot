@@ -42,14 +42,27 @@ _FAKE_RESPONSE = AnalyzeResponse(
     escalate=False,
     clarification=None,
     suggested_reply="Please check your billing statement.",
+    trace={"enabled": False},
+)
+
+_FAKE_RESPONSE_WITH_DEBUG = _FAKE_RESPONSE.model_copy(
+    update={
+        "debug": {
+            "nodes": [{"name": "classify", "rationale": "LLM classified queue='Billing'."}],
+            "retrieval": [],
+            "confidence_breakdown": {"final": 0.82},
+            "sla_breakdown": {"final": 0.1},
+            "decision": "answer",
+        }
+    }
 )
 
 
 class _FakeGraphAnalyzer:
-    """Minimal GraphAnalyzer stub — always returns _FAKE_RESPONSE."""
+    """Minimal GraphAnalyzer stub — always returns _FAKE_RESPONSE (or the debug variant)."""
 
-    def analyze(self, text: str) -> AnalyzeResponse:
-        return _FAKE_RESPONSE
+    def analyze(self, text: str, *, explain: bool = False) -> AnalyzeResponse:
+        return _FAKE_RESPONSE_WITH_DEBUG if explain else _FAKE_RESPONSE
 
 
 # ---------------------------------------------------------------------------
@@ -127,8 +140,27 @@ def test_analyze_slice_b_fields_present(client: TestClient) -> None:
     assert body["sla_risk"] is not None, "sla_risk should be populated in Slice B"
     assert body["escalate"] is not None, "escalate should be populated in Slice B"
     assert body["suggested_reply"] is not None, "suggested_reply should be populated in Slice B"
-    # trace is still null until Slice C
-    assert body["trace"] is None, "trace must remain null until Slice C"
+    # trace reflects LangSmith tracing status (Slice C) — disabled by default in tests
+    assert body["trace"] == {"enabled": False}
+    # debug is only populated when ?explain=true (see test_analyze_explain_query_param below)
+    assert body["debug"] is None
+
+
+def test_analyze_explain_query_param_populates_debug(client: TestClient) -> None:
+    """POST /analyze?explain=true populates the reserved `debug` field."""
+    resp = client.post("/analyze?explain=true", json={"text": "billing problem"})
+    body = resp.json()
+    assert body["debug"] is not None
+    assert "nodes" in body["debug"]
+    assert "confidence_breakdown" in body["debug"]
+    assert "sla_breakdown" in body["debug"]
+    assert "decision" in body["debug"]
+
+
+def test_analyze_explain_defaults_to_false(client: TestClient) -> None:
+    """POST /analyze (no query param) leaves `debug` null — explain defaults to False."""
+    resp = client.post("/analyze", json={"text": "billing problem"})
+    assert resp.json()["debug"] is None
 
 
 def test_analyze_with_metadata(client: TestClient) -> None:

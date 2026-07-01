@@ -14,15 +14,42 @@ Safety contract:
 from __future__ import annotations
 
 import logging
+import os
+import time
 from functools import lru_cache
 from typing import Any
 
+from langsmith import traceable, tracing_context
+from langsmith.run_helpers import get_current_run_tree
+
 from app.analyze.baseline import Analyzer
 from app.analyze.graph import TicketState, build_default_graph
+from app.analyze.trace import build_trace_summary
+from app.config import Settings, get_settings
 from app.retrieval.hybrid import to_similar_tickets
 from app.schemas import AnalyzeResponse
 
 _logger = logging.getLogger(__name__)
+
+
+def _ensure_langsmith_env(settings: Settings) -> None:
+    """Export LangSmith config from ``Settings`` (pydantic-settings/.env) to ``os.environ``.
+
+    The ``langsmith`` SDK reads its configuration directly from the process environment
+    (``LANGSMITH_TRACING`` / ``LANGSMITH_API_KEY`` / ``LANGSMITH_PROJECT`` /
+    ``LANGSMITH_ENDPOINT``), not from our ``Settings`` object — so a ``.env``-only value
+    would otherwise never reach the SDK. This is a no-op when tracing is off, and never
+    raises (missing values are simply skipped).
+    """
+    if not settings.langsmith_tracing:
+        return
+    os.environ["LANGSMITH_TRACING"] = "true"
+    if settings.langsmith_api_key:
+        os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+    if settings.langsmith_project:
+        os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+    if settings.langsmith_endpoint:
+        os.environ["LANGSMITH_ENDPOINT"] = settings.langsmith_endpoint
 
 
 class GraphAnalyzer:
@@ -53,7 +80,7 @@ class GraphAnalyzer:
     # Core method
     # ------------------------------------------------------------------
 
-    def analyze(self, text: str) -> AnalyzeResponse:
+    def analyze(self, text: str, *, explain: bool = False) -> AnalyzeResponse:
         """Invoke the LangGraph workflow for *text* and map the final state to an envelope.
 
         The graph runs: retrieve → classify → sentiment → assess_missing → score
@@ -66,18 +93,54 @@ class GraphAnalyzer:
 
         Args:
             text: Ticket text (assumed pre-validated by ``AnalyzeRequest``).
+            explain: When ``True``, populate ``AnalyzeResponse.debug`` from the
+                in-app accumulator (``reasoning``/breakdowns) built up in ``TicketState``
+                by the graph nodes. Never reconstructed from LangSmith.
 
         Returns:
-            Populated ``AnalyzeResponse``.  ``trace`` remains ``None`` until Slice C.
+            Populated ``AnalyzeResponse``. ``trace`` reflects LangSmith tracing status
+            (Slice C) — ``{"enabled": False}`` when tracing is off or no key is set.
         """
+        settings = get_settings()
+        _ensure_langsmith_env(settings)
+        tracing_enabled = bool(settings.langsmith_tracing and settings.langsmith_api_key)
+
+        captured: dict[str, Any] = {}
+
+        @traceable(run_type="chain", name="GraphAnalyzer.analyze")
+        def _run(ticket_text: str) -> TicketState:
+            if tracing_enabled:
+                try:
+                    captured["run_tree"] = get_current_run_tree()
+                except Exception:
+                    _logger.debug(
+                        "GraphAnalyzer.analyze: could not capture run tree", exc_info=True
+                    )
+            return self._graph.invoke({"text": ticket_text})  # type: ignore[no-any-return]
+
+        start = time.perf_counter()
         try:
-            state: TicketState = self._graph.invoke({"text": text})
+            with tracing_context(enabled=tracing_enabled):
+                state: TicketState = _run(text)
         except Exception:
             _logger.exception(
                 "GraphAnalyzer.analyze: graph.invoke raised an exception; "
                 "falling back to Slice A Analyzer"
             )
-            return Analyzer.from_settings().analyze(text)
+            fallback = Analyzer.from_settings().analyze(text)
+            return fallback.model_copy(update={"trace": {"enabled": False}, "debug": None})
+        latency_ms = (time.perf_counter() - start) * 1000.0
+
+        try:
+            trace = build_trace_summary(
+                captured.get("run_tree"),
+                latency_ms,
+                settings.langsmith_project,
+                tracing_enabled,
+            )
+        except Exception:
+            _logger.exception("GraphAnalyzer.analyze: failed to build trace summary")
+            trace = {"enabled": False}
 
         # Build the envelope from the final TicketState.
         neighbors = state.get("neighbors") or []
@@ -89,6 +152,10 @@ class GraphAnalyzer:
         # list the same as absent (the API contract says null when not on clarify path).
         raw_clarification = state.get("clarification")
         clarification: list[str] | None = list(raw_clarification) if raw_clarification else None
+
+        debug: dict[str, Any] | None = None
+        if explain:
+            debug = self._build_debug(state, neighbors)
 
         return AnalyzeResponse(
             category=state.get("category"),
@@ -103,8 +170,41 @@ class GraphAnalyzer:
             clarification=clarification,
             suggested_reply=state.get("suggested_reply"),
             # Slice C
-            trace=None,
+            trace=trace,
+            debug=debug,
         )
+
+    # ------------------------------------------------------------------
+    # --explain support (C4)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_debug(state: TicketState, neighbors: list[Any]) -> dict[str, Any]:
+        """Assemble ``AnalyzeResponse.debug`` from the final ``TicketState``.
+
+        Pure mapping — no LLM calls, no LangSmith. Reads the in-app accumulator
+        fields (``reasoning``, ``confidence_breakdown``, ``sla_breakdown``) that the
+        graph nodes populate as they run (see ``app/analyze/graph.py``).
+        """
+        reasoning: dict[str, str] = dict(state.get("reasoning") or {})
+        nodes = [{"name": name, "rationale": rationale} for name, rationale in reasoning.items()]
+        retrieval = [
+            {
+                "score": n.score,
+                "queue": n.queue,
+                "priority": n.priority,
+                "type": n.type,
+                "snippet": n.snippet,
+            }
+            for n in neighbors
+        ]
+        return {
+            "nodes": nodes,
+            "retrieval": retrieval,
+            "confidence_breakdown": dict(state.get("confidence_breakdown") or {}),
+            "sla_breakdown": dict(state.get("sla_breakdown") or {}),
+            "decision": state.get("decision"),
+        }
 
 
 # ---------------------------------------------------------------------------
