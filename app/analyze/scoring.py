@@ -9,6 +9,8 @@ learning script without instantiating the full graph.
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.analyze.baseline import _clamp01, _sigmoid
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,51 @@ def full_confidence(
     return _clamp01(base + consistency - penalty)
 
 
+def full_confidence_breakdown(
+    top_score: float,
+    agreement: float,
+    llm_queue: str | None,
+    majority_queue: str | None,
+    missing_count: int,
+) -> dict[str, Any]:
+    """Same computation as ``full_confidence`` but returns every intermediate term.
+
+    Used by the ``score`` node's ``--explain`` accumulator (C4). Kept as a sibling
+    function (rather than changing ``full_confidence``'s return type) so existing
+    callers/tests of ``full_confidence`` are unaffected.
+
+    Returns:
+        A dict with ``agreement``, ``top_score``, ``sigmoid_top_score``, ``consistency``,
+        ``penalty``, ``final``, and the weight constants used (``w_agreement``,
+        ``w_score``, ``w_consistency``, ``penalty_missing``).
+    """
+    sigmoid_top_score = _sigmoid(top_score)
+    base = W_AGREEMENT * agreement + W_SCORE * sigmoid_top_score
+    consistency = (
+        W_CONSISTENCY
+        if (
+            llm_queue is not None
+            and majority_queue is not None
+            and llm_queue == majority_queue
+        )
+        else 0.0
+    )
+    penalty = PENALTY_MISSING if missing_count > 0 else 0.0
+    final = _clamp01(base + consistency - penalty)
+    return {
+        "agreement": agreement,
+        "top_score": top_score,
+        "sigmoid_top_score": sigmoid_top_score,
+        "consistency": consistency,
+        "penalty": penalty,
+        "final": final,
+        "w_agreement": W_AGREEMENT,
+        "w_score": W_SCORE,
+        "w_consistency": W_CONSISTENCY,
+        "penalty_missing": PENALTY_MISSING,
+    }
+
+
 def sla_risk(
     priority: str | None,
     frustration: float,
@@ -108,3 +155,36 @@ def sla_risk(
         + SLA_W_FRUSTRATION * frustration
         + SLA_W_MISSING * (1.0 if has_missing else 0.0)
     )
+
+
+def sla_risk_breakdown(
+    priority: str | None,
+    frustration: float,
+    has_missing: bool,
+) -> dict[str, Any]:
+    """Same computation as ``sla_risk`` but returns every intermediate term.
+
+    Used by the ``score`` node's ``--explain`` accumulator (C4). Kept as a sibling
+    function so ``sla_risk`` itself is unchanged (backward-compatible with existing tests).
+
+    Returns:
+        A dict with ``priority``, ``priority_weight``, ``frustration``, ``has_missing``,
+        ``final``, and the weight constants used (``w_priority``, ``w_frustration``,
+        ``w_missing``).
+    """
+    pw = _PRIORITY_WEIGHTS.get((priority or "").lower(), 0.5)
+    final = _clamp01(
+        SLA_W_PRIORITY * pw
+        + SLA_W_FRUSTRATION * frustration
+        + SLA_W_MISSING * (1.0 if has_missing else 0.0)
+    )
+    return {
+        "priority": priority,
+        "priority_weight": pw,
+        "frustration": frustration,
+        "has_missing": has_missing,
+        "final": final,
+        "w_priority": SLA_W_PRIORITY,
+        "w_frustration": SLA_W_FRUSTRATION,
+        "w_missing": SLA_W_MISSING,
+    }

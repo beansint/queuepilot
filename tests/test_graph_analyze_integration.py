@@ -84,5 +84,8 @@ def test_graph_analyze_real_query_vpn() -> None:
         "expected classify node to set at least category or queue"
     )
 
-    # trace must be null until Slice C (LangSmith)
-    assert result.trace is None, "trace must remain null until Slice C"
+    # trace reflects LangSmith tracing status (Slice C); disabled unless LANGSMITH_TRACING
+    # + LANGSMITH_API_KEY are set in the environment running this live integration test.
+    assert result.trace is not None and "enabled" in result.trace, (
+        f"expected a trace summary dict with an 'enabled' key, got: {result.trace!r}"
+    )

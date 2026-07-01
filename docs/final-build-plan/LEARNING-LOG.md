@@ -44,10 +44,10 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Guarded-copilot pattern (answer/clarify/escalate) | B8 | `docs/learn/07-guarded-copilot.md` | `learn/07_guarded_copilot.py` | **done** | A guarded copilot escalates under uncertainty rather than hallucinating — confidence and SLA risk are deterministic, auditable numbers that drive a three-way route (answer/clarify/escalate), so control flow is inspectable and the LLM cannot bypass the safety net. |
 
 ## Slice C
-| Concept | Doc | Status |
-|---|---|---|
-| LangSmith tracing | `docs/learn/06-tracing.md` | not-started |
-| In-app explainability (`--explain`) | `docs/learn/07-explainability.md` | not-started |
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| LangSmith tracing / observability | C7 | `docs/learn/08-langsmith-tracing.md` | `learn/08_langsmith_tracing.py` | **done** | `@traceable` + `tracing_context` give free-with-a-flag observability — the same code path runs identically whether a LangSmith key is present or not, so tracing degrades to a no-op instead of becoming a hard dependency, and wrapping the raw LLM client (not just the graph) is what puts actual prompts and completions inside the trace. |
+| In-app explainability (`?explain=true`) | C8 | `docs/learn/09-explainability.md` | `learn/09_explainability.py` | **done** | Explainability is a self-contained, in-app accumulator (`reasoning` + confidence/SLA breakdowns) built from the same deterministic functions the graph already runs — so `?explain=true` shows the exact arithmetic behind a decision without depending on LangSmith or making any extra calls. |
 
 ## Slice D
 | Concept | Doc | Status |

@@ -11,6 +11,7 @@ import json
 from typing import Any, Protocol
 
 from groq import Groq
+from langsmith import traceable
 
 from app.config import get_settings
 
@@ -41,6 +42,7 @@ class GroqChat:
     def __init__(self, api_key: str) -> None:
         self._client = Groq(api_key=api_key)
 
+    @traceable(run_type="llm", name="GroqChat.complete")
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 512
     ) -> str:
@@ -55,6 +57,7 @@ class GroqChat:
         )
         return resp.choices[0].message.content or ""
 
+    @traceable(run_type="llm", name="GroqChat.complete_json")
     def complete_json(self, system: str, user: str, *, temperature: float = 0.0) -> dict[str, Any]:
         resp = self._client.chat.completions.create(
             model=self.MODEL,

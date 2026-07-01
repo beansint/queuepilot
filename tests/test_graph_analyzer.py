@@ -82,7 +82,8 @@ def test_analyze_answer_path_fields() -> None:
     # clarification is an empty list → normalised to None
     assert result.clarification is None
     assert result.suggested_reply == "Please restart the print spooler service."
-    assert result.trace is None
+    # No LANGSMITH_API_KEY in the test environment → tracing off → minimal disabled shape.
+    assert result.trace == {"enabled": False}
 
 
 def test_analyze_answer_path_similar_tickets_order() -> None:
@@ -245,6 +246,63 @@ def test_analyze_confidence_clamped_above_one(monkeypatch: pytest.MonkeyPatch) -
 
     result = GraphAnalyzer(graph=fake_graph).analyze("test")
     assert result.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# C4 — --explain accumulator
+# ---------------------------------------------------------------------------
+
+
+def _canned_state_with_debug() -> dict[str, Any]:
+    neighbors = _make_neighbors(2)
+    return {
+        "text": "printer offline",
+        "neighbors": neighbors,
+        "category": "Incident",
+        "queue": "IT Support",
+        "priority": "high",
+        "sentiment": {"frustration": 0.2, "negativity": 0.1},
+        "missing_info": [],
+        "sla_risk": 0.15,
+        "confidence": 0.82,
+        "decision": "answer",
+        "escalate": False,
+        "clarification": [],
+        "suggested_reply": "Please restart the print spooler service.",
+        "reasoning": {
+            "classify": "LLM classified queue='IT Support'.",
+            "score": "confidence=0.820 sla_risk=0.150.",
+        },
+        "confidence_breakdown": {"final": 0.82, "agreement": 1.0},
+        "sla_breakdown": {"final": 0.15, "priority_weight": 1.0},
+    }
+
+
+def test_analyze_explain_true_populates_debug() -> None:
+    """analyze(explain=True) assembles debug from the in-app reasoning/breakdown accumulator."""
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = _canned_state_with_debug()
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("printer offline", explain=True)
+
+    assert result.debug is not None
+    assert result.debug["decision"] == "answer"
+    assert result.debug["confidence_breakdown"] == {"final": 0.82, "agreement": 1.0}
+    assert result.debug["sla_breakdown"] == {"final": 0.15, "priority_weight": 1.0}
+    node_names = {n["name"] for n in result.debug["nodes"]}
+    assert node_names == {"classify", "score"}
+    assert len(result.debug["retrieval"]) == 2
+    assert "score" in result.debug["retrieval"][0]
+
+
+def test_analyze_explain_false_leaves_debug_none() -> None:
+    """analyze(explain=False) (the default) never populates debug."""
+    fake_graph = MagicMock()
+    fake_graph.invoke.return_value = _canned_state_with_debug()
+
+    result = GraphAnalyzer(graph=fake_graph).analyze("printer offline")
+
+    assert result.debug is None
 
 
 def test_analyze_confidence_clamped_below_zero(monkeypatch: pytest.MonkeyPatch) -> None:
