@@ -15,7 +15,7 @@ import { ExplainPanel } from "@/components/console/ExplainPanel"
 import { TraceStrip } from "@/components/console/TraceStrip"
 import { SummaryRail } from "@/components/console/SummaryRail"
 import { ResultSkeleton } from "@/components/console/ResultSkeleton"
-import { LoginGate } from "@/components/console/LoginGate"
+import { Landing } from "@/components/marketing/Landing"
 import { AuthRequiredError, analyzeTicket, getAuthStatus } from "@/lib/api"
 import type { AnalyzeResponse } from "@/lib/types"
 
@@ -133,7 +133,7 @@ export default function App() {
   }
 
   if (authGate === "gated") {
-    return <LoginGate onAuthed={() => void checkAuth()} />
+    return <Landing onAuthed={() => void checkAuth()} />
   }
 
   return (
