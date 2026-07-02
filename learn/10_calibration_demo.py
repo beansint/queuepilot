@@ -78,7 +78,10 @@ def _reliability(rows: list[tuple[bool, float, float]], pick: str) -> None:
     """Print a calibration/reliability table: within each confidence bucket, what
     fraction were actually correct? Perfect calibration => accuracy ≈ bucket midpoint."""
     buckets = [(0.0, 0.4), (0.4, 0.55), (0.55, 0.7), (0.7, 1.01)]
-    header = f"  {'confidence bucket':>18} │ {'n':>4} │ {'claimed':>8} │ {'ACTUAL acc':>10} │ reliability"
+    header = (
+        f"  {'confidence bucket':>18} │ {'n':>4} │ {'claimed':>8} │ "
+        f"{'ACTUAL acc':>10} │ reliability"
+    )
     print(header)
     print("  " + "─" * 74)
     gaps: list[float] = []
