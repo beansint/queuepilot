@@ -14,6 +14,7 @@ import { SimilarTicketsTable } from "@/components/console/SimilarTicketsTable"
 import { ExplainPanel } from "@/components/console/ExplainPanel"
 import { TraceStrip } from "@/components/console/TraceStrip"
 import { SummaryRail } from "@/components/console/SummaryRail"
+import { IdleRail } from "@/components/console/IdleRail"
 import { ResultSkeleton } from "@/components/console/ResultSkeleton"
 import { Landing } from "@/components/marketing/Landing"
 import { AuthRequiredError, analyzeTicket, getAuthStatus } from "@/lib/api"
@@ -212,7 +213,11 @@ export default function App() {
         )}
       </main>
 
-      {status === "success" && result && <SummaryRail response={result} />}
+      {status === "success" && result ? (
+        <SummaryRail response={result} />
+      ) : (
+        <IdleRail onPickSample={runAnalysis} />
+      )}
 
       <Toaster />
     </div>
