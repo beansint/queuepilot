@@ -27,6 +27,9 @@ from fastapi import HTTPException, Request
 from app.config import get_settings
 
 COOKIE_NAME = "qp_session"
+#: Session lifetime — enforced both as the cookie ``Max-Age`` and, server-side, against the
+#: signed ``iat`` in :func:`verify` so a captured cookie stops verifying after this window.
+COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days
 
 _TOKEN_VERSION = "v1"
 _SESSION_VALUE = "authenticated"
@@ -56,11 +59,14 @@ def sign(value: str, secret: str) -> str:
     return f"{_TOKEN_VERSION}.{payload}.{sig}"
 
 
-def verify(token: str, secret: str) -> str | None:
+def verify(token: str, secret: str, *, max_age: int | None = None) -> str | None:
     """Verify a token produced by :func:`sign`; return the original value or ``None``.
 
     Returns ``None`` on any tamper, malformed token, or unexpected error — never raises.
-    Uses ``hmac.compare_digest`` for a constant-time signature comparison.
+    Uses ``hmac.compare_digest`` for a constant-time signature comparison. When ``max_age``
+    (seconds) is given, also rejects tokens whose signed ``iat`` is older than ``max_age``
+    (or in the future), so an old/captured cookie stops verifying — the signature covers
+    ``iat``, so this age check cannot be forged.
     """
     try:
         parts = token.split(".")
@@ -75,6 +81,10 @@ def verify(token: str, secret: str) -> str | None:
         )
         if not hmac.compare_digest(sig, expected_sig):
             return None
+        if max_age is not None:
+            age = int(time.time()) - int(iat)
+            if age > max_age or age < -60:  # -60s tolerance for minor clock skew
+                return None
         return _b64decode(b64_value).decode("utf-8")
     except Exception:
         return None
@@ -107,7 +117,7 @@ def _cookie_is_valid(token: str | None) -> bool:
     settings = get_settings()
     if not token or not settings.session_secret:
         return False
-    return verify(token, settings.session_secret) == _SESSION_VALUE
+    return verify(token, settings.session_secret, max_age=COOKIE_MAX_AGE) == _SESSION_VALUE
 
 
 def is_request_authenticated(request: Request) -> bool:

@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # In-process (no Redis) per-IP fixed-window limit and global daily cap; see app.ratelimit.
     rate_limit_per_min: int = 20
     daily_cap: int = 500
+    # Stricter per-IP limit on POST /login to blunt invite-code brute-forcing.
+    login_attempts_per_min: int = 10
 
 
 @lru_cache

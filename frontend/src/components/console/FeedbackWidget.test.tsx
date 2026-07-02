@@ -3,11 +3,15 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { FeedbackWidget } from "@/components/console/FeedbackWidget"
 import { SAMPLE_RESPONSE } from "@/test/fixtures"
-import { postFeedback } from "@/lib/api"
+import { AuthRequiredError, postFeedback } from "@/lib/api"
 
-vi.mock("@/lib/api", () => ({
-  postFeedback: vi.fn(),
-}))
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>()
+  return {
+    ...actual,
+    postFeedback: vi.fn(),
+  }
+})
 
 vi.mock("sonner", () => ({
   toast: {
@@ -129,6 +133,37 @@ describe("FeedbackWidget", () => {
         score: 1,
       }),
     )
+  })
+
+  it("calls onAuthExpired instead of showing a generic error when thumbs feedback 401s", async () => {
+    const user = userEvent.setup()
+    postFeedbackMock.mockRejectedValueOnce(new AuthRequiredError())
+    const onAuthExpired = vi.fn()
+    const { toast } = await import("sonner")
+
+    render(
+      <FeedbackWidget response={SAMPLE_RESPONSE} submittedText="my ticket text" onAuthExpired={onAuthExpired} />,
+    )
+    await user.click(screen.getByRole("button", { name: /thumbs up/i }))
+
+    expect(onAuthExpired).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it("calls onAuthExpired instead of showing a generic error when a correction submit 401s", async () => {
+    const user = userEvent.setup()
+    postFeedbackMock.mockRejectedValueOnce(new AuthRequiredError())
+    const onAuthExpired = vi.fn()
+    const { toast } = await import("sonner")
+
+    render(
+      <FeedbackWidget response={SAMPLE_RESPONSE} submittedText="my ticket text" onAuthExpired={onAuthExpired} />,
+    )
+    await user.click(screen.getByRole("button", { name: /suggest a correction/i }))
+    await user.click(screen.getByRole("button", { name: /submit correction/i }))
+
+    expect(onAuthExpired).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it("resets thumbs/correction state when a new run_id arrives", async () => {
