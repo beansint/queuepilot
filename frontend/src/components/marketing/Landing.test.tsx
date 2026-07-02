@@ -37,6 +37,24 @@ describe("Landing", () => {
     }
   })
 
+  it("renders the five-upgrades section with the calibrated-confidence highlight", () => {
+    render(<Landing onAuthed={vi.fn()} />)
+    expect(
+      screen.getByRole("heading", { name: /five upgrades over a retrieve-and-generate pipeline/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Calibrated confidence" })).toBeInTheDocument()
+    expect(screen.getByText(/the big one/i)).toBeInTheDocument()
+  })
+
+  it("renders the calibration section with claimed vs actual confidence", () => {
+    render(<Landing onAuthed={vi.fn()} />)
+    expect(
+      screen.getByRole("heading", { name: /calibrated confidence — not the model's word/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByText("0.95")).toBeInTheDocument()
+    expect(screen.getByText("0.53")).toBeInTheDocument()
+  })
+
   it("renders all 4 capability rows", () => {
     render(<Landing onAuthed={vi.fn()} />)
     for (const title of [

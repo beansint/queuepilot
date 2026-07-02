@@ -6,10 +6,12 @@ import {
   ListTodo,
   MessageSquareText,
   Route,
+  Sparkles,
   ShieldCheck,
 } from "lucide-react"
 import { InviteGate } from "@/components/console/InviteGate"
 import { CONTACT_URL, GITHUB_URL } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 interface LandingProps {
   onAuthed: () => void
@@ -53,6 +55,60 @@ const CAPABILITIES = [
 
 const STACK_BADGES = ["FastAPI", "LangGraph", "Pinecone", "LangSmith", "React"]
 
+const UPGRADES: {
+  number: string
+  title: string
+  pill?: string
+  description: string
+  detail: string
+  highlight?: boolean
+}[] = [
+  {
+    number: "01",
+    title: "Hybrid retrieval",
+    description:
+      "Dense embeddings match meaning; BM25 catches exact terms — error codes, product names, law numbers. QueuePilot blends both (normalized) with an alpha dial.",
+    detail: "dense + sparse → normalize → hybrid_score(α)",
+  },
+  {
+    number: "02",
+    title: "Structured output",
+    description: "The LLM fills a form, not a paragraph — decisions a system can act on.",
+    detail: "category · queue · priority · sentiment",
+  },
+  {
+    number: "03",
+    title: "Agent assembly line",
+    pill: "LangGraph",
+    description:
+      "One prompt becomes a chain of small nodes sharing a state dict, so every step's contribution is visible.",
+    detail: "retrieve → classify → sentiment → assess → score → decide",
+  },
+  {
+    number: "04",
+    title: "Calibrated confidence",
+    description:
+      "Never ask the model how sure it is — LLMs are overconfident. Trust is built from observable signals: neighbour agreement, retrieval closeness, consistency, a missing-info penalty.",
+    detail: "f(agreement, closeness, consistency, missing) — never f(LLM's claim)",
+    highlight: true,
+  },
+  {
+    number: "05",
+    title: "Guarded routing + explainability",
+    pill: "LangSmith",
+    description:
+      "With a real confidence number, the last node routes: low → escalate, missing info → clarify, high → answer. Every run is traced and explainable.",
+    detail: "escalate · clarify · answer",
+  },
+]
+
+const RELIABILITY_ROWS: { claimed: string; actual: string }[] = [
+  { claimed: "0.20", actual: "0.19" },
+  { claimed: "0.48", actual: "0.38" },
+  { claimed: "0.62", actual: "0.52" },
+  { claimed: "0.85", actual: "0.71" },
+]
+
 /**
  * Public, presentational recruiter/client-facing landing page (Slice E). Rendered by App when
  * `authGate === "gated"` instead of the bare LoginGate. Makes NO API calls except `login()` from
@@ -81,6 +137,8 @@ export function Landing({ onAuthed }: LandingProps) {
       <main>
         <Hero onGetStarted={() => setModalOpen(true)} />
         <SpecStrip />
+        <UpgradesSection />
+        <CalibrationSection />
         <ValueSection />
         <GuardedCallout />
       </main>
@@ -245,6 +303,215 @@ function SpecStrip() {
   )
 }
 
+/** "How it works" — the 5 upgrades that separate QueuePilot from a plain retrieve-and-generate
+ * pipeline. Card 04 (calibrated confidence) is the signature idea and gets the flat-blue
+ * highlight treatment used by the console's ConfidenceHero, so it reads as "the big one" without
+ * introducing any new visual language. */
+function UpgradesSection() {
+  return (
+    <section
+      aria-labelledby="upgrades-heading"
+      className="border-b border-border bg-white px-5 py-20 sm:px-8"
+    >
+      <div className="mx-auto max-w-6xl">
+        <span className="mb-3 block font-mono text-[10.5px] font-bold tracking-[0.09em] text-accent-foreground uppercase">
+          How it works
+        </span>
+        <h2
+          id="upgrades-heading"
+          className="mb-2 max-w-2xl text-[24px] leading-tight font-extrabold tracking-[-0.015em] text-foreground sm:text-[28px]"
+        >
+          Five upgrades over a retrieve-and-generate pipeline
+        </h2>
+        <p className="mb-10 max-w-xl text-[14px] leading-relaxed text-muted-foreground">
+          Each is a small, nameable idea — together they turn RAG into a copilot that knows how
+          much to trust itself.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {UPGRADES.map((upgrade) => (
+            <UpgradeCard key={upgrade.number} {...upgrade} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function UpgradeCard({
+  number,
+  title,
+  pill,
+  description,
+  detail,
+  highlight,
+}: (typeof UPGRADES)[number]) {
+  return (
+    <article
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border px-5 py-5",
+        highlight
+          ? "border-[#0A3A57] bg-hero text-white shadow-[0_18px_40px_rgba(15,23,42,0.10),0_4px_10px_rgba(15,23,42,0.05)] lg:col-span-1"
+          : "border-border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "font-mono text-[13px] font-bold",
+            highlight ? "text-white/70" : "text-accent-foreground",
+          )}
+        >
+          {number}
+        </span>
+        {highlight ? (
+          <span className="flex items-center gap-1 rounded-full border border-white/30 bg-white/10 px-2 py-0.5 font-mono text-[9.5px] font-bold tracking-[0.07em] text-white uppercase">
+            <Sparkles className="size-3" />
+            The big one
+          </span>
+        ) : pill ? (
+          <span className="rounded-full border border-border bg-[#F8FAFC] px-2 py-0.5 font-mono text-[9.5px] font-semibold tracking-[0.04em] text-muted-foreground">
+            {pill}
+          </span>
+        ) : null}
+      </div>
+
+      <h3
+        className={cn(
+          "text-[15.5px] font-bold tracking-[-0.01em]",
+          highlight ? "text-white" : "text-foreground",
+        )}
+      >
+        {title}
+      </h3>
+
+      <p
+        className={cn(
+          "text-[13.5px] leading-relaxed",
+          highlight ? "text-white/85" : "text-muted-foreground",
+        )}
+      >
+        {description}
+      </p>
+
+      <div
+        className={cn(
+          "mt-auto border-t pt-3 font-mono text-[11px] leading-snug",
+          highlight ? "border-white/15 text-white/70" : "border-border text-[#8896A8]",
+        )}
+      >
+        {detail}
+      </div>
+    </article>
+  )
+}
+
+/** "Calibration" — the differentiated insight: a self-reported confidence score is useless
+ * (overconfident) while the blended score tracks real accuracy. Numbers sourced from
+ * `learn/10_calibration_demo.py`. Two contrasting cards echo the console's positive/destructive
+ * token usage rather than introducing new colors. */
+function CalibrationSection() {
+  return (
+    <section aria-labelledby="calibration-heading" className="px-5 py-20 sm:px-8">
+      <div className="mx-auto max-w-6xl">
+        <span className="mb-3 block font-mono text-[10.5px] font-bold tracking-[0.09em] text-accent-foreground uppercase">
+          Calibration
+        </span>
+        <h2
+          id="calibration-heading"
+          className="mb-2 max-w-2xl text-[24px] leading-tight font-extrabold tracking-[-0.015em] text-foreground sm:text-[28px]"
+        >
+          Calibrated confidence — not the model's word
+        </h2>
+        <p className="mb-10 max-w-xl text-[14px] leading-relaxed text-muted-foreground">
+          Real numbers from <code className="font-mono text-[13px]">learn/10_calibration_demo.py</code>.
+        </p>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* Self-reported confidence — the false signal */}
+          <div className="flex flex-col gap-4 rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-6">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[14.5px] font-bold tracking-[-0.005em] text-foreground">
+                Self-reported confidence
+              </h3>
+              <span className="rounded-full border border-destructive/40 bg-white px-2.5 py-0.5 font-mono text-[10px] font-semibold text-destructive">
+                calibration error ≈ 0.33
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-6">
+              <div>
+                <div className="font-mono text-[11px] font-semibold tracking-[0.04em] text-muted-foreground uppercase">
+                  Claimed
+                </div>
+                <div className="font-mono text-[32px] leading-none font-bold text-foreground">0.95</div>
+              </div>
+              <div>
+                <div className="font-mono text-[11px] font-semibold tracking-[0.04em] text-muted-foreground uppercase">
+                  Actual
+                </div>
+                <div className="font-mono text-[32px] leading-none font-bold text-destructive">0.53</div>
+              </div>
+            </div>
+
+            <div className="h-2 overflow-hidden rounded border border-border bg-white">
+              <div className="h-full bg-destructive/70" style={{ width: "53%" }} />
+            </div>
+
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              The model claims it's right 95% of the time — it's actually right ~53%. That gap
+              makes self-confidence useless for routing.
+            </p>
+          </div>
+
+          {/* Blended confidence — production */}
+          <div className="flex flex-col gap-4 rounded-xl border border-positive/30 bg-positive/5 px-6 py-6">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[14.5px] font-bold tracking-[-0.005em] text-foreground">
+                Blended confidence (production)
+              </h3>
+              <span className="rounded-full border border-positive/40 bg-white px-2.5 py-0.5 font-mono text-[10px] font-semibold text-positive">
+                calibration error ≈ 0.11
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between font-mono text-[10.5px] font-semibold tracking-[0.03em] text-muted-foreground uppercase">
+                <span>Claimed</span>
+                <span>Actual</span>
+              </div>
+              {RELIABILITY_ROWS.map((row) => (
+                <div
+                  key={row.claimed}
+                  className="flex items-center gap-3 border-t border-border pt-1.5 first:border-t-0 first:pt-0"
+                >
+                  <span className="w-12 font-mono text-[12.5px] font-semibold text-foreground">
+                    {row.claimed}
+                  </span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded bg-white">
+                    <div
+                      className="h-full rounded bg-positive/60"
+                      style={{ width: `${Number(row.actual) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-12 text-right font-mono text-[12.5px] font-semibold text-positive">
+                    {row.actual}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Claimed and actual track each other — "62% confident" really means right ~52–62% of
+              the time.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function ValueSection() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
@@ -274,21 +541,16 @@ function ValueSection() {
   )
 }
 
-/** A single flat-blue accent block (no gradient) echoing the console's confidence hero — used
- * sparingly, once, to keep the light marketing page cohesive with the app it links to. */
+/** Slimmed to a single closing CTA line — the "guarded by design" narrative now lives in
+ * UpgradesSection (05) and the calibration story owns the confidence proof, so this no longer
+ * needs to repeat either. Kept as a lightweight flat-blue closer that points to the repo. */
 function GuardedCallout() {
   return (
     <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
-      <div className="flex flex-col items-start gap-4 rounded-2xl border border-[#0A3A57] bg-hero px-7 py-8 text-white shadow-[0_18px_40px_rgba(15,23,42,0.10),0_4px_10px_rgba(15,23,42,0.05)] sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <span className="font-mono text-[10.5px] font-bold tracking-[0.09em] text-white/60 uppercase">
-            Guarded by design
-          </span>
-          <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-white/90">
-            Every decision is scored against calibrated thresholds — confidence below the line
-            escalates to a human, it never guesses its way through a ticket.
-          </p>
-        </div>
+      <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#0A3A57] bg-hero px-7 py-6 text-white shadow-[0_18px_40px_rgba(15,23,42,0.10),0_4px_10px_rgba(15,23,42,0.05)] sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[14.5px] leading-relaxed text-white/90">
+          See the full walkthrough — workflow, retrieval, and calibration source.
+        </p>
         <a
           href={GITHUB_URL}
           target="_blank"
@@ -296,7 +558,7 @@ function GuardedCallout() {
           className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white bg-white px-4 py-2.5 text-[13.5px] font-semibold text-hero shadow-sm transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2"
         >
           <GitFork className="size-4" />
-          See the workflow
+          GitHub
         </a>
       </div>
     </section>
