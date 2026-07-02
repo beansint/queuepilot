@@ -69,7 +69,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 ## Slice F
 | Concept | Task | Doc | Script | Status | Takeaway |
 |---|---|---|---|---|---|
-| REST vs GraphQL — additive API design (where each fits) | F7 | `docs/learn/15-graphql.md` | `learn/15_graphql.py` | **not-started** | _(fill on completion)_ GraphQL lets the client declare the response shape against one typed schema; it's a second adapter over the same service, so it wins on client-shaped payloads + an introspectable contract but not on backend compute — hence the deliberate split: GraphQL for the read/analysis surface, REST for liveness, cookie-auth, and best-effort writes. |
+| REST vs GraphQL — additive API design (where each fits) | F7 | `docs/learn/15-graphql.md` | `learn/15_graphql.py` | **done** | GraphQL lets the client declare the response shape against one typed schema; it's a second adapter over the same service, so it wins on client-shaped payloads + an introspectable contract but not on backend compute — hence the deliberate split: GraphQL for the read/analysis surface, REST for liveness, cookie-auth, and best-effort writes. |
 
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_

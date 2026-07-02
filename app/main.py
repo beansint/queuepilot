@@ -28,6 +28,7 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.feedback import get_feedback_client, submit_feedback
+from app.graphql import build_graphql_router
 from app.ratelimit import login_rate_limit, rate_limit
 from app.schemas import AnalyzeRequest, AnalyzeResponse, FeedbackRequest
 
@@ -199,5 +200,12 @@ def _register_frontend_routes(fastapi_app: FastAPI) -> None:
     def _frontend_placeholder() -> HTMLResponse:
         return HTMLResponse(content=_PLACEHOLDER_HTML, status_code=200)
 
+
+# ---------------------------------------------------------------------------
+# GraphQL (Slice F — D17): additive /graphql over the same services as REST.
+# Mounted BEFORE the frontend routes so the SPA mount never shadows it. Gated +
+# rate-limited by the same dependencies as REST /analyze (inside build_graphql_router).
+# ---------------------------------------------------------------------------
+app.include_router(build_graphql_router(), prefix="/graphql")
 
 _register_frontend_routes(app)

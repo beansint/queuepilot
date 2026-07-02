@@ -107,14 +107,37 @@ Canonical design docs live in [`docs/final-build-plan/`](docs/final-build-plan/)
 5. **Guarded routing + explainability** — the graph answers, clarifies, or escalates based on that
    calibrated score, and `--explain` / LangSmith trace every step so the decision is auditable.
 
+## GraphQL API
+
+Alongside REST, QueuePilot exposes an **additive `/graphql` endpoint** (Strawberry) — a second
+adapter over the *same* services, so results are at parity with REST. It shines on the big
+`AnalyzeResponse` envelope: the client picks exactly the fields it needs instead of over-fetching.
+
+```graphql
+query {
+  analyze(text: "I was charged twice this month and need a refund") {
+    queue
+    confidence          # a triage widget asks for just these two…
+  }
+}
+# …the full console asks for similarTickets, sentiment { frustration negativity },
+# slaRisk, suggestedReply, trace — same resolver, client-chosen shape.
+```
+
+`submitFeedback` is exposed as a mutation; login/logout stay REST (cookie-setting belongs on the
+transport). `/graphql` is gated + rate-limited by the same dependencies as REST `/analyze`. An
+interactive **GraphiQL explorer** is served at [`/graphql`](https://queuepilot-jjpg.onrender.com/graphql)
+(log in first). Why REST *and* GraphQL, and where each fits: [`docs/learn/15-graphql.md`](docs/learn/15-graphql.md).
+
 ## Stack
 
 FastAPI · LangGraph (guarded copilot workflow) · Pinecone (sparse-dense hybrid) · Voyage embeddings
 (registry-swappable) · `pinecone-text` BM25 · Groq chat (registry-swappable) · Pydantic · `uv` ·
-ruff + mypy(strict) + pytest · GitHub Actions CI. A React/Vite/Tailwind/shadcn console (served by
-this same FastAPI app) is the front end, with LangSmith tracing wired through every `/analyze` call
-and an offline + online eval suite (calibration/ECE, LLM-as-judge, feedback flywheel) grading it.
-The whole thing ships as one Docker image, deployed to Render.
+ruff + mypy(strict) + pytest · GitHub Actions CI. An additive **GraphQL** API (Strawberry) sits
+beside REST. A React/Vite/Tailwind/shadcn console (served by this same FastAPI app) is the front end,
+with LangSmith tracing wired through every `/analyze` call and an offline + online eval suite
+(calibration/ECE, LLM-as-judge, feedback flywheel) grading it. The whole thing ships as one Docker
+image, deployed to Render.
 
 ## Quickstart
 
@@ -226,7 +249,7 @@ Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
 | **C — Dashboard + Observability** | Vite/React console + LangSmith tracing + `--explain` | ✅ done |
 | **D — Evaluation** | LangSmith offline + online eval, experiments, feedback flywheel, calibration | ✅ done |
 | **E — Deploy & Harden** | Docker → Render (live), invite-code cookie auth, rate limiting + daily cap, CI | ✅ done |
-| **F — GraphQL API** | additive `/graphql` (Strawberry): `analyze` query + `submitFeedback` mutation, GraphiQL explorer | 🔨 in progress |
+| **F — GraphQL API** | additive `/graphql` (Strawberry): `analyze` query + `submitFeedback` mutation, GraphiQL explorer | ✅ done |
 
 ## Dataset & license
 
