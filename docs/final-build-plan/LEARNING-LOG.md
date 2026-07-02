@@ -49,6 +49,11 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | LangSmith tracing / observability | C7 | `docs/learn/08-langsmith-tracing.md` | `learn/08_langsmith_tracing.py` | **done** | `@traceable` + `tracing_context` give free-with-a-flag observability — the same code path runs identically whether a LangSmith key is present or not, so tracing degrades to a no-op instead of becoming a hard dependency, and wrapping the raw LLM client (not just the graph) is what puts actual prompts and completions inside the trace. |
 | In-app explainability (`?explain=true`) | C8 | `docs/learn/09-explainability.md` | `learn/09_explainability.py` | **done** | Explainability is a self-contained, in-app accumulator (`reasoning` + confidence/SLA breakdowns) built from the same deterministic functions the graph already runs — so `?explain=true` shows the exact arithmetic behind a decision without depending on LangSmith or making any extra calls. |
 
+## Bonus / synthesis (cross-slice)
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| From classic RAG to a guarded agentic copilot (+ calibration) | overview | `docs/learn/10-rag-to-guarded-copilot.md` (+ interactive `docs/learn/10-rag-to-guarded-copilot.html`) | `learn/10_calibration_demo.py` | **done** | The step up from classic RAG is *calibration*: never trust the LLM's self-reported confidence (it's overconfident); instead blend observable signals (neighbour agreement, retrieval closeness, LLM/majority consistency, missing-info penalty) into a score that actually tracks accuracy, then route answer/clarify/escalate on it. The interactive HTML lets you drag the signals and watch the decision move. |
+
 ## Slice D
 | Concept | Task | Doc | Script | Status | Takeaway |
 |---|---|---|---|---|---|
