@@ -1,0 +1,36 @@
+# Build-context excludes — keep the image lean and secret-free.
+# Everything here is NOT sent to the Docker daemon during `docker build`.
+
+# VCS / tooling
+.git
+.gitignore
+.github
+.claude
+.playwright-mcp
+
+# Python virtualenvs + caches (deps are reinstalled from uv.lock inside the image)
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Frontend: node_modules + prior dist are rebuilt in the Node stage
+frontend/node_modules
+frontend/dist
+
+# Secrets — NEVER bake .env into an image (injected at run via --env-file / Render env)
+.env
+.env.*
+!.env.example
+
+# Large raw corpus (only the fitted BM25 artifact under data/artifacts is needed at runtime)
+data/raw
+
+# Not needed at runtime
+tests
+eval/snapshots
+scratchpad
+*.log

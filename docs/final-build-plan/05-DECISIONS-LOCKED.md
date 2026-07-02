@@ -150,3 +150,28 @@ re-index for no gain over the post-cap pool); wiring CI now (rejected — pulls 
 **Why:** closes the "LangSmith eval/experiments" job gap with an additive, offline-testable eval layer
 that keeps `/analyze` untouched and validates the A/B confidence blend via a calibration evaluator.
 Full design: `11-SLICE-D-DESIGN.md`.
+
+### D16 — Slice E deploy & harden: Docker→Render, invite-cookie auth, rate limiting (extends 03)
+**Date:** 2026-07-02.
+**Choice:** Slice E ships the deploy/hardening layer with these locked decisions:
+1. **Containerize local-first, then Render (reaffirms D10).** One multi-stage image (Node builds the
+   React `dist` → lean Python/uv runtime serves UI+API) built and run **locally first** as a graded
+   📚 learning goal, then deployed to **Render's free tier** (cold starts ~30–60s after 15-min idle
+   accepted; $7/mo Starter is the optional always-on mode). Same image local and cloud.
+2. **Auth = single shared invite code → signed HTTP-only cookie** (extends the 🔒 `03` contract,
+   additive): new `POST /login {code}` → sets a `SameSite=Lax`, HTTP-only cookie **signed with
+   stdlib HMAC** (`SESSION_SECRET`) — no new dependency. A FastAPI dependency gates `POST /analyze`
+   and `POST /feedback` (`401` without a valid cookie); `GET /health` stays open for Render health
+   checks. New env: `INVITE_CODE`, `SESSION_SECRET`.
+3. **Rate limiting = in-process per-IP** (`429`, the code `03` reserved) **+ a global daily cap**
+   (`429`/`503` when exceeded). Both in-process (no Redis, no new dep) — fine for one free instance;
+   Redis deferred to horizontal scale. New env: `RATE_LIMIT_PER_MIN`, `DAILY_CAP`.
+4. **CI = GitHub Actions**: `ruff` + `mypy` + offline `pytest` + frontend `pnpm build`/`vitest` on PRs;
+   secret-free. Nightly eval (LangSmith Service key) still deferred.
+5. **No new runtime deps** for auth/rate-limit (stdlib `hmac` signing + in-process counters) to keep
+   the image lean and the supply chain small.
+**Considered:** Redis-backed rate limiting (rejected — overkill for one free instance); named/per-user
+codes or full accounts (rejected — out of scope per `00`); a separate host for the SPA (rejected —
+D13 keeps it same-origin, one container).
+**Why:** makes QueuePilot a live, invite-gated, quota-protected public demo behind a single Dockerized
+Render service, while teaching containerization hands-on. Full design: `12-SLICE-E-DESIGN.md`.
