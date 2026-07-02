@@ -86,10 +86,10 @@ export function NavRail() {
 
       <div className="flex items-center gap-2.5 border-t border-border pt-3.5 pl-2.5">
         <div className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-accent-foreground font-mono text-[11px] font-bold text-primary-foreground">
-          RH
+          VP
         </div>
         <div className="text-xs font-medium text-muted-foreground">
-          <strong className="block text-[12.5px] font-semibold text-foreground">Riley Hale</strong>
+          <strong className="block text-[12.5px] font-semibold text-foreground">Vincent Pacaña</strong>
           Support lead
         </div>
       </div>

@@ -25,7 +25,7 @@ export function TopBar({ onNewAnalysis, subtitle }: TopBarProps) {
           </span>
         </button>
         <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-accent-foreground font-mono text-[13px] font-bold text-primary-foreground shadow-sm">
-          RH
+          VP
         </div>
       </div>
     </div>
