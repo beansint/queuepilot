@@ -19,11 +19,14 @@ queue, priority, similar historical cases, and a confidence score — built on *
 It's also a **learning project**: every component ships a concept doc + runnable script + self-quiz
 (see [The learning layer](#the-learning-layer)).
 
+![QueuePilot console — a support ticket triaged with routing, calibrated confidence, a grounded reply, and a LangSmith trace](frontend/public/console-preview.png)
+
 ---
 
-## What it does (Slice A)
+## What it does
 
-`POST /analyze` with ticket text → a structured, forward-compatible envelope:
+`POST /analyze` with ticket text → a structured envelope produced by a guarded LangGraph copilot —
+routing, calibrated confidence, sentiment, SLA risk, and (when confident enough) a grounded reply:
 
 ```bash
 curl -s -X POST localhost:8000/analyze -H 'Content-Type: application/json' \
@@ -34,49 +37,93 @@ curl -s -X POST localhost:8000/analyze -H 'Content-Type: application/json' \
   "category": "Incident",
   "queue": "Billing and Payments",
   "priority": "low",
-  "confidence": 0.841,                 // blended: retrieval agreement + bounded top score
+  "confidence": 0.841,                 // calibrated blend: retrieval agreement + score + LLM/vote consistency
   "similar_tickets": [                 // real neighbors from the corpus, hybrid-ranked
     {"score": 0.42, "queue": "Billing and Payments", "snippet": "..."},
     {"score": 0.41, "queue": "Billing and Payments", "snippet": "..."}
   ],
-  "sentiment": null, "sla_risk": null, "escalate": null,   // reserved for Slice B
-  "clarification": null, "suggested_reply": null, "trace": null
+  "sentiment": {"frustration": 0.3, "negativity": 0.2},
+  "sla_risk": 0.18,
+  "escalate": false,
+  "clarification": null,               // filled instead of suggested_reply when details are missing
+  "suggested_reply": "Thanks for flagging the duplicate charge — I can see two charges on ...",
+  "trace": {
+    "enabled": true, "run_id": "1b2c...", "url": "https://smith.langchain.com/...",
+    "latency_ms": 842.3, "project": "queuepilot"
+  }
 }
 ```
 
-A unanimous neighborhood (above) yields **high confidence**; a mixed one yields lower confidence —
-the score is explainable and tunable, never raw LLM self-confidence.
+A unanimous neighborhood (above) yields **high confidence**, which routes straight to a grounded
+`suggested_reply`; a mixed neighborhood or missing details routes to `clarification` instead, and
+genuine uncertainty or extreme SLA risk sets `escalate: true` with both left `null`. The score is
+explainable and tunable — never raw LLM self-confidence (see
+[calibrated confidence](#how-it-works--five-upgrades-over-classic-rag) below).
+
+Pass `?explain=true` to also get a `debug` step-by-step reasoning trail (see
+[Observability & `--explain`](#observability---explain)). `POST /feedback` records a thumbs
+up/down plus optional correction against a run's `trace.run_id`, feeding the eval flywheel.
 
 ## Architecture
 
+`POST /analyze` runs a compiled LangGraph `StateGraph` (`app/analyze/graph.py`, `GraphAnalyzer`)
+behind the same contract the API has always exposed:
+
 ```
-POST /analyze ─► app/analyze/baseline.py (Analyzer)
-                   │  embed_query (Voyage)  +  encode_query (BM25)
-                   │  └─► hybrid_score_norm(alpha)         # weight semantic vs lexical
-                   │       └─► PineconeStore.hybrid_query  # one dotproduct index, dense+sparse
-                   │            └─► majority-vote labels + confidence v0
-                   └─► AnalyzeResponse (binding contract)
+START ─► retrieve ─► classify ─► sentiment ─► assess_missing ─► score ─► decide ◇
+           │            │            │              │             │        ├─ answer   ─► draft_reply ─► END
+    hybrid dense+     LLM picks   LLM scores    LLM lists       deterministic├─ clarify  ─► clarify     ─► END
+    sparse retrieval  category/   frustration/  missing detail  confidence + └─ escalate ───────────────► END
+    (Pinecone)         queue/     negativity    strings         sla_risk (never
+                      priority                                  raw LLM self-confidence)
 ```
 
 - **Hybrid retrieval** — dense (Voyage `voyage-3.5-lite`, 1024d) for meaning + sparse (BM25) for
   exact keywords, fused in a single Pinecone dotproduct index with an alpha weight.
-- **Provider registry** — embeddings sit behind an `Embedder` protocol; swap Voyage / Gemini / (next)
-  OpenAI with one env var (`EMBEDDING_PROVIDER`).
-- **Contract-first** — the `AnalyzeResponse` envelope is fixed from day one; later slices fill
-  reserved fields without breaking the API.
-- **Designed for the graph** — `Analyzer` is the one place that composes embed+retrieve+derive, so
-  Slice B drops in a LangGraph runtime behind the same `/analyze` contract.
+- **Provider registry** — embeddings and chat both sit behind protocols (`Embedder`, `ChatModel`);
+  swap providers (Voyage / Gemini embeddings, Groq chat) with an env var.
+- **Contract-first** — the `AnalyzeResponse` envelope (`app/schemas.py`) was fixed from day one; the
+  full graph now populates every field, no shape changes needed along the way.
+- **Calibrated confidence** — `app/analyze/scoring.py` blends retrieval label-agreement, a
+  sigmoid-scaled top score, and LLM/majority-vote consistency (with a missing-info penalty) into one
+  `confidence`, and blends priority + frustration + missing-info into `sla_risk`. Both are observable,
+  tunable signals — never the model's own stated confidence.
+- **Guarded routing** — `route_decision` (in `graph.py`) picks `answer` / `clarify` / `escalate` from
+  `confidence` + `sla_risk` + missing info, so the copilot drafts a grounded reply when it's sure,
+  asks a clarifying question when details are thin, and hands off to a human when it isn't sure or
+  SLA risk is extreme — every LLM node degrades gracefully on failure rather than raising.
+- **Observability** — LangSmith tracing on every run plus an in-app `--explain` reasoning trail (see
+  below); a Vite/React console visualizes it all.
+- **Eval suite** (`eval/`) — offline `evaluate()` experiments, online eval, calibration/ECE checks,
+  an LLM-as-judge evaluator, and a feedback flywheel that turns `POST /feedback` corrections into new
+  eval examples.
+- **Deploy** — one Docker image (console + API) shipped to Render, gated by invite-cookie auth and
+  per-IP/daily rate limiting.
 
 Canonical design docs live in [`docs/final-build-plan/`](docs/final-build-plan/) (start with its
 `README.md`).
+
+## How it works — five upgrades over classic RAG
+
+1. **Hybrid retrieval** — dense + sparse fusion in one Pinecone index, not just cosine-similarity
+   nearest neighbors.
+2. **Structured output** — every response is a validated, forward-compatible Pydantic envelope, not
+   free-text.
+3. **LangGraph assembly line** — retrieve → classify → sentiment → assess → score → decide, as
+   discrete, testable, resumable nodes instead of one monolithic prompt.
+4. **Calibrated confidence** — a blend of observable signals (retrieval agreement, score, label
+   consistency), not the model's own stated confidence.
+5. **Guarded routing + explainability** — the graph answers, clarifies, or escalates based on that
+   calibrated score, and `--explain` / LangSmith trace every step so the decision is auditable.
 
 ## Stack
 
 FastAPI · LangGraph (guarded copilot workflow) · Pinecone (sparse-dense hybrid) · Voyage embeddings
 (registry-swappable) · `pinecone-text` BM25 · Groq chat (registry-swappable) · Pydantic · `uv` ·
-ruff + mypy(strict) + pytest · GitHub Actions CI. **LangSmith tracing is now active** (Slice C);
-offline/online eval expands it further in Slice D. The Slice C console (Vite + React + Tailwind +
-shadcn, served by this app) is designed but its build is paused pending a UI-design session.
+ruff + mypy(strict) + pytest · GitHub Actions CI. A React/Vite/Tailwind/shadcn console (served by
+this same FastAPI app) is the front end, with LangSmith tracing wired through every `/analyze` call
+and an offline + online eval suite (calibration/ECE, LLM-as-judge, feedback flywheel) grading it.
+The whole thing ships as one Docker image, deployed to Render.
 
 ## Quickstart
 
