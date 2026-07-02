@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { AlertCircle, ArrowLeft, KeyRound, ListTodo, Loader2 } from "lucide-react"
+import { AlertCircle, ArrowLeft, KeyRound, Loader2 } from "lucide-react"
+import { BrandGlyph } from "@/components/BrandGlyph"
 import { login } from "@/lib/api"
 import { CONTACT_URL } from "@/lib/site"
 
@@ -51,7 +52,7 @@ export function InviteGate({ onAuthed, onBack }: InviteGateProps) {
 
       <div className="mb-5 flex items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[9px] bg-white/15">
-          <ListTodo className="size-[18px]" strokeWidth={2.2} />
+          <BrandGlyph className="size-5" />
         </div>
         <div className="flex flex-col gap-px">
           <span className="text-[15px] font-extrabold tracking-[-0.02em]">QueuePilot</span>

@@ -4,12 +4,12 @@ import {
   Database,
   Inbox,
   LifeBuoy,
-  ListTodo,
   Plug,
   Route,
   Settings,
   SlidersHorizontal,
 } from "lucide-react"
+import { BrandGlyph } from "@/components/BrandGlyph"
 
 interface NavLinkProps {
   icon: React.ReactNode
@@ -50,7 +50,7 @@ export function NavRail() {
     >
       <div className="flex items-center gap-2.5 px-2 pb-2">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-primary shadow-sm">
-          <ListTodo className="size-[18px] text-primary-foreground" strokeWidth={2.2} />
+          <BrandGlyph className="size-[19px]" />
         </div>
         <div className="flex flex-col gap-px">
           <span className="text-[15px] font-extrabold tracking-[-0.02em]">QueuePilot</span>
