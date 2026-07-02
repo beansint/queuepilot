@@ -16,6 +16,7 @@ dependencies = [
     "langgraph>=1.2.7",
     "groq>=1.5.0",
     "langsmith>=0.9.4",
+    "strawberry-graphql[fastapi]>=0.282",
 ]
 
 [dependency-groups]
@@ -44,6 +45,7 @@ python_version = "3.12"
 strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+plugins = ["strawberry.ext.mypy_plugin"]
 
 [[tool.mypy.overrides]]
 # pinecone-text / pinecone ship no type stubs; treat their imports as Any.

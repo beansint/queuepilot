@@ -7,7 +7,7 @@ All decisions below: **2026-06-29**, during the initial brainstorm.
 
 ---
 
-### D1 — Lean job-fit posture
+### D1 — Lean job-fit posture *(GraphQL deferral superseded by D17)*
 **Choice:** build the clean FastAPI+LangGraph+Pinecone+LangSmith core; **defer** Azure Service Bus,
 GraphQL, and OpenAI-only wiring.
 **Considered:** max box-coverage (wire Azure + GraphQL + OpenAI); core+Azure-only.
@@ -175,3 +175,32 @@ codes or full accounts (rejected — out of scope per `00`); a separate host for
 D13 keeps it same-origin, one container).
 **Why:** makes QueuePilot a live, invite-gated, quota-protected public demo behind a single Dockerized
 Render service, while teaching containerization hands-on. Full design: `12-SLICE-E-DESIGN.md`.
+
+### D17 — Un-defer GraphQL: additive read+feedback surface via Strawberry (Slice F, extends 03) — **supersedes D1's GraphQL deferral**
+**Date:** 2026-07-03.
+**Choice:** un-defer GraphQL (originally deferred in **D1**) and add an **additive** `/graphql` endpoint
+alongside REST, built with **Strawberry** (`strawberry-graphql[fastapi]`):
+1. **Surface = `Query.analyze(text, explain)` + `Query.health` + `Mutation.submitFeedback`.** Resolvers
+   call the **same** service functions as REST (`get_graph_analyzer().analyze()`, `submit_feedback()`),
+   so REST/GraphQL parity is structural — no duplicated logic. The GraphQL `Analysis` type maps 1:1 to
+   the `AnalyzeResponse` envelope (`sentiment` → typed object; `trace`/`debug` → `JSON` scalar).
+2. **Writes stay REST for login/logout/auth-status.** Cookie-setting is session bootstrap, not data
+   mutation; keeping it on REST avoids duplicating auth and widening the CSRF surface hardened in D16.
+   (Cookie-in-a-mutation is *possible* in Strawberry but not appropriate here.)
+3. **Gating reuses D16 verbatim.** `GraphQLRouter(dependencies=[Depends(require_auth), Depends(rate_limit)])`
+   — same invite-cookie + per-IP/daily-cap guards as REST `/analyze`; one source of truth. GraphiQL
+   requires login first (consistent with the invite-gated demo); REST `GET /health` stays open.
+4. **Additive, no regressions.** Every REST route and the existing (REST-based) frontend are untouched;
+   the response envelope is unchanged. GraphiQL is enabled + surfaced (landing link + README) for the
+   portfolio; the frontend data layer is NOT rewired to GraphQL.
+5. **One new runtime dep** (`strawberry-graphql[fastapi]`) + its mypy plugin. Graded 📚 artifact:
+   `15-graphql`.
+**Considered:** query-only surface (rejected — leaving out `submitFeedback` costs a clean mutation
+teaching beat for ~no saved effort); full parity incl. login/logout as mutations (rejected — cookie
+side-effects + duplicated auth + CSRF surface for little gain); Ariadne/Graphene (rejected — Strawberry's
+code-first + Pydantic-native fit the stack best); rewiring the frontend to GraphQL (deferred — REST works,
+avoid regression risk; GraphiQL surfaces the value instead).
+**Why:** the `AnalyzeResponse` envelope (12 fields, ~half optional/expensive) is a textbook fit for
+client-shaped field selection, and an introspectable schema + GraphiQL is a strong portfolio signal —
+while a deliberate REST/GraphQL split (GraphQL for read/analysis, REST for liveness/auth/best-effort
+writes) is itself the senior-level API-design lesson. Full design: `13-SLICE-F-DESIGN.md`.

@@ -1,11 +1,12 @@
 # 04 — Build Sequence
 
-Slices map to milestones M-A…M-E in both trackers. Issues are mirrored 1:1
+Slices map to milestones M-A…M-F in both trackers. Issues are mirrored 1:1
 (GitHub `#N` ↔ Linear `BEA-…`).
 
 ## Slice order
-A (foundation+retrieval) → B (LangGraph workflow) → C (dashboard+tracing) → D (eval) → E (deploy).
-Build A fully before B — prove the retrieval/output loop before wrapping a graph around it.
+A (foundation+retrieval) → B (LangGraph workflow) → C (dashboard+tracing) → D (eval) → E (deploy) →
+F (additive GraphQL). Build A fully before B — prove the retrieval/output loop before wrapping a graph
+around it. F is additive and last — it layers a second transport over the finished services.
 
 ---
 
@@ -133,3 +134,28 @@ expand into per-task issues if needed.)
   `/health` open. Live-URL smoke test (login → analyze → feedback) passes.
 - CI green on PRs (ruff/mypy/offline pytest + frontend build). Both 📚 artifacts logged.
 - `main` clean via squash-merged PR; README has a clickable demo link.
+
+---
+
+## Slice F — Additive GraphQL API (M-F)
+Branch `feat/slice-f-graphql`. Epic `#45` / `BEA-F-EPIC`. 📚 = ships a learning artifact. Design
+detail: `13-SLICE-F-DESIGN.md`; decisions `05-DECISIONS-LOCKED.md → D17` (un-defers GraphQL, extends
+`03`). **Additive** — REST + the existing frontend data layer are untouched.
+
+| ID | Task | GH | Linear | Deps |
+|---|---|---|---|---|
+| <a id="f1"></a>F1 📚 | ADR `D17` + locked-doc updates (`01`/`00`/`03`) + `13-SLICE-F-DESIGN.md` + `04`/README roadmap; milestone **M-F** + issues | #45 | — | — |
+| <a id="f2"></a>F2 | `strawberry-graphql[fastapi]` dep + mypy plugin (`strawberry.ext.mypy_plugin`); `uv lock`; build green | #45 | — | F1 |
+| <a id="f3"></a>F3 | `app/graphql/types.py`: Strawberry types + `from_response()` mappers (`Sentiment` object; `trace`/`debug` → `JSON` scalar) | #45 | — | F2 |
+| <a id="f4"></a>F4 | `app/graphql/{schema,context}.py`: `Query.analyze`+`Query.health`+`Mutation.submitFeedback` reusing existing services | #45 | — | F3 |
+| <a id="f5"></a>F5 | Mount `/graphql` before SPA catch-all + gating (`require_auth`+`rate_limit` parity) + GraphiQL enabled | #45 | — | F4 |
+| <a id="f6"></a>F6 | Tests: `tests/test_graphql.py` (field-selection, REST parity, auth 401, rate-limit 429, feedback, error shape) | #45 | — | F4,F5 |
+| <a id="f7"></a>F7 📚 | `15-graphql` doc + `learn/15_graphql.py` (field-selected query + printed SDL) + self-quiz + log row | #45 | — | F4 |
+| <a id="f8"></a>F8 | Surface GraphiQL: landing "Explore the GraphQL API →" link + README GraphQL section | #45 | — | F5 |
+
+### Slice F exit criteria
+- `/graphql` serves `analyze` (query) + `submitFeedback` (mutation), gated + rate-limited like REST;
+  GraphiQL loads post-login. Field selection + REST parity proven by tests + a live smoke check.
+- 📚 `15-graphql` complete (doc + runnable script + self-quiz + LEARNING-LOG row).
+- Full suite + `ruff` + `mypy --strict` (incl. Strawberry plugin) green; REST/auth/SPA regression clean.
+- `main` clean via squash-merged PR; `03`/`01`/`00` reflect the un-deferral; `05 → D17` recorded.

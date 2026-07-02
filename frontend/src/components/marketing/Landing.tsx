@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import {
   Activity,
   ArrowRight,
+  Braces,
   FlaskConical,
   GitFork,
   MessageSquareText,
@@ -57,7 +58,7 @@ const CAPABILITIES = [
   },
 ]
 
-const STACK_BADGES = ["FastAPI", "LangGraph", "Pinecone", "LangSmith", "React"]
+const STACK_BADGES = ["FastAPI", "LangGraph", "Pinecone", "LangSmith", "GraphQL", "React"]
 
 const UPGRADES: {
   number: string
@@ -634,6 +635,15 @@ function Footer() {
 
         <div className="flex items-center gap-4 text-[12.5px]">
           <span className="text-[#8896A8]">Invite-gated demo</span>
+          <a
+            href="/graphql"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+          >
+            <Braces className="size-3.5" />
+            GraphQL API
+          </a>
           <a
             href={CONTACT_URL}
             target="_blank"
