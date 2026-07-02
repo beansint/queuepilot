@@ -15,19 +15,22 @@ import { ExplainPanel } from "@/components/console/ExplainPanel"
 import { TraceStrip } from "@/components/console/TraceStrip"
 import { SummaryRail } from "@/components/console/SummaryRail"
 import { ResultSkeleton } from "@/components/console/ResultSkeleton"
-import { analyzeTicket } from "@/lib/api"
+import { LoginGate } from "@/components/console/LoginGate"
+import { AuthRequiredError, analyzeTicket, getAuthStatus } from "@/lib/api"
 import type { AnalyzeResponse } from "@/lib/types"
 
 const SAMPLE_TICKET =
   "My laptop won't connect to the office VPN after the latest Windows update. I've tried restarting and reinstalling the client but nothing works — I have a client demo in 2 hours and I'm completely stuck. Please help!"
 
 type Status = "idle" | "loading" | "error" | "success"
+type AuthGate = "checking" | "gated" | "open"
 
 function nextTicketId(): string {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
 
 export default function App() {
+  const [authGate, setAuthGate] = useState<AuthGate>("checking")
   const [inputText, setInputText] = useState(SAMPLE_TICKET)
   const [status, setStatus] = useState<Status>("idle")
   const [result, setResult] = useState<AnalyzeResponse | null>(null)
@@ -35,6 +38,21 @@ export default function App() {
   const [submitted, setSubmitted] = useState<{ text: string; id: string } | null>(null)
   const [explainOpen, setExplainOpen] = useState(false)
   const explainTriggerRef = useRef<HTMLButtonElement>(null)
+
+  const checkAuth = useCallback(async () => {
+    try {
+      const { required, authenticated } = await getAuthStatus()
+      setAuthGate(required && !authenticated ? "gated" : "open")
+    } catch {
+      // Auth-status check itself failed (e.g. network hiccup) — fail open rather than
+      // stranding the user on a blank screen; /analyze will still 401 -> re-gate if needed.
+      setAuthGate("open")
+    }
+  }, [])
+
+  useEffect(() => {
+    void checkAuth()
+  }, [checkAuth])
 
   const runAnalysis = useCallback(async (text: string) => {
     const trimmed = text.trim()
@@ -48,6 +66,12 @@ export default function App() {
       setResult(response)
       setStatus("success")
     } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        setStatus("idle")
+        setSubmitted(null)
+        setAuthGate("gated")
+        return
+      }
       const message = err instanceof Error ? err.message : "Something went wrong analyzing this ticket."
       setErrorMessage(message)
       setStatus("error")
@@ -82,6 +106,14 @@ export default function App() {
     document.addEventListener("keydown", onKeyDown)
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [status])
+
+  if (authGate === "checking") {
+    return <div className="min-h-screen bg-background" aria-busy="true" />
+  }
+
+  if (authGate === "gated") {
+    return <LoginGate onAuthed={() => void checkAuth()} />
+  }
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[232px_1fr] xl:grid-cols-[232px_1fr_300px]">

@@ -76,6 +76,11 @@ export interface FeedbackRequest {
   text?: string | null
 }
 
+export interface AuthStatus {
+  required: boolean
+  authenticated: boolean
+}
+
 export interface AnalyzeResponse {
   category: string | null
   queue: string | null

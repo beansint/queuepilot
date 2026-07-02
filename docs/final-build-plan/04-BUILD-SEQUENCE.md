@@ -104,3 +104,32 @@ artifact. Design detail: `11-SLICE-D-DESIGN.md`. Decisions: `05-DECISIONS-LOCKED
 - Online eval runner grades recent real traces and prints an aggregate.
 - Every 📚 task has doc + runnable script + self-quiz, logged in `LEARNING-LOG.md`.
 - Tests green (deterministic evaluators offline + gated live eval); `main` clean via squash-merged PR.
+
+---
+
+## Slice E — Deploy & Harden (M-E)
+Branch `slice-e-deploy`. Epic `#14` / `BEA-141`. 📚 = ships a learning artifact. Design detail:
+`12-SLICE-E-DESIGN.md`; decisions `05-DECISIONS-LOCKED.md → D16`. (Tasks tracked under the epic;
+expand into per-task issues if needed.)
+
+| ID | Task | GH | Linear | Deps |
+|---|---|---|---|---|
+| <a id="e1"></a>E1 | `.dockerignore` + multi-stage `Dockerfile` (Node build → Python/uv runtime); build locally | #14 | BEA-141 | — |
+| <a id="e2"></a>E2 | Run container locally against real `.env`; verify `/health` + console + `/analyze` | #14 | BEA-141 | E1 |
+| <a id="e3"></a>E3 📚 | `13-containerization` doc + `learn/13_containerization.py` + self-quiz + log row | #14 | BEA-141 | E2 |
+| <a id="e4"></a>E4 | Invite-code auth: `app/auth.py`, `POST /login`+`/logout`+`/auth/status`, signed cookie, gate on `/analyze`+`/feedback` (D16) | #14 | BEA-141 | — |
+| <a id="e5"></a>E5 | Console gate screen (`LoginGate.tsx`) + authed state; `/health` open | #14 | BEA-141 | E4 |
+| <a id="e6"></a>E6 | Rate limiting (per-IP → 429) + global daily cap; config + `.env.example` | #14 | BEA-141 | — |
+| <a id="e7"></a>E7 📚 | `14-securing-a-public-api` doc + `learn/14_securing_a_public_api.py` + self-quiz + log row | #14 | BEA-141 | E4,E6 |
+| <a id="e8"></a>E8 | GitHub Actions CI: ruff + mypy + offline pytest + frontend build/vitest | #14 | BEA-141 | — |
+| <a id="e9"></a>E9 | `render.yaml` blueprint + Render deploy (user connects account/secrets) + live-URL smoke test | #14 | BEA-141 | E1,E4,E6 |
+| <a id="e10"></a>E10 | Tests: auth (cookie sign/verify, gating, 401), rate-limit 429, daily cap | #14 | BEA-141 | E4,E6 |
+| <a id="e11"></a>E11 | Docs: README deploy + demo URL + attribution; update `04`/`06` | #14 | BEA-141 | all |
+
+### Slice E exit criteria
+- `docker build` + `docker run` work locally; the containerized app serves the console + `/analyze`
+  against the real stack. 📚 `13-containerization` complete.
+- Public demo on Render behind an invite code; `/analyze`+`/feedback` gated + rate-limited + daily-capped;
+  `/health` open. Live-URL smoke test (login → analyze → feedback) passes.
+- CI green on PRs (ruff/mypy/offline pytest + frontend build). Both 📚 artifacts logged.
+- `main` clean via squash-merged PR; README has a clickable demo link.

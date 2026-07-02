@@ -59,7 +59,7 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Concept | Task | Doc | Script | Status | Takeaway |
 |---|---|---|---|---|---|
 | Containerization (Docker, multi-stage, local run) | E3 | `docs/learn/13-containerization.md` | `learn/13_containerization.py` | **done** | A multi-stage Dockerfile builds the React bundle in a throwaway Node stage and ships a lean Python runtime that copies just the built `dist` — cache by copying dependency manifests before source, bind `0.0.0.0` so the port is reachable outside the container, respect `$PORT`, and inject `.env` at run time (never bake secrets into a layer) so one image runs identically locally and on Render. |
-| Securing a public API (invite cookie, rate limit, daily cap) | E7 | `docs/learn/14-securing-a-public-api.md` | `learn/14_securing_a_public_api.py` | not-started | — |
+| Securing a public API (invite cookie, rate limit, daily cap) | E7 | `docs/learn/14-securing-a-public-api.md` | `learn/14_securing_a_public_api.py` | **done** | A signed, HttpOnly, SameSite=Lax cookie (stdlib HMAC + `hmac.compare_digest`) proves "this browser knows the invite code" without a session store or a new dependency, every gate degrades to open when its env var is unset, and a per-IP rate limit plus a global daily cap are two independent guards — one client hammering the API vs. many clients draining the shared provider budget. |
 
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_

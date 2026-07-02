@@ -131,6 +131,28 @@ and the rest of `trace` is `null` — no external calls, no error. See
 [`docs/final-build-plan/09-SLICE-C-DESIGN.md`](docs/final-build-plan/09-SLICE-C-DESIGN.md) for the
 full design.
 
+## Run in Docker / Deploy
+
+One multi-stage image serves the React console **and** the API (a Node stage builds the bundle; a
+lean Python/uv stage runs it). Secrets are injected at run time — never baked into the image.
+
+```bash
+docker build -t queuepilot:local .
+docker run --rm -p 8000:8000 --env-file .env queuepilot:local   # → http://localhost:8000
+```
+
+**Invite-code gate + rate limiting** (Slice E). When `INVITE_CODE` **and** `SESSION_SECRET` are set,
+`POST /analyze` and `POST /feedback` require a signed HTTP-only cookie obtained from `POST /login`
+(`GET /health` stays open for platform health checks). Unset either var and auth is **open** (local
+dev). Per-IP rate limiting + a global daily cap (`RATE_LIMIT_PER_MIN`, `DAILY_CAP`) protect the
+provider quotas; over-limit returns `429`.
+
+**Deploy to Render** (free tier) via the committed [`render.yaml`](render.yaml) Blueprint: connect the
+repo, then set the env vars in the dashboard (all `sync: false` secrets; `SESSION_SECRET` is
+auto-generated). Render builds the `Dockerfile`, injects `$PORT`, and health-checks `/health`. Free
+instances cold-start (~30–60s) after idle; a $7/mo instance stays always-on. See
+[`docs/final-build-plan/12-SLICE-E-DESIGN.md`](docs/final-build-plan/12-SLICE-E-DESIGN.md).
+
 ## The learning layer
 
 A core part of this project: every concept ships a doc + a standalone runnable script + a self-quiz,
@@ -153,9 +175,9 @@ Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
 |---|---|---|
 | **A — Foundation & Retrieval Loop** | hybrid retrieval + baseline `/analyze` | ✅ done |
 | **B — Agentic Workflow** | LangGraph state machine (classify → assess → score → decide → draft) | ✅ done |
-| **C — Dashboard + Observability** | LangSmith tracing + `--explain` (backend) landing; console designed, build paused pending UI-design session | 🚧 in progress |
-| **D — Evaluation** | LangSmith offline + online eval | planned |
-| **E — Deploy & Harden** | Docker → Render, invite-code auth, rate limiting | planned |
+| **C — Dashboard + Observability** | Vite/React console + LangSmith tracing + `--explain` | ✅ done |
+| **D — Evaluation** | LangSmith offline + online eval, experiments, feedback flywheel, calibration | ✅ done |
+| **E — Deploy & Harden** | Docker → Render, invite-code cookie auth, rate limiting + daily cap, CI | 🚧 in progress |
 
 ## Dataset & license
 
