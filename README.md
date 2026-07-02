@@ -4,16 +4,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+**▶ Live demo: https://queuepilot-jjpg.onrender.com** (invite-gated — ask for an access code).
+
 An **agentic AI ticketing system** for IT/helpdesk support: paste a ticket and get back a routed
 queue, priority, similar historical cases, and a confidence score — built on **hybrid retrieval**
 (dense + sparse) over a real support-ticket corpus, with a guarded "support copilot" workflow.
 
-> **Status:** Slices A (Foundation & Retrieval Loop) and B (Agentic Workflow) complete — `/analyze` is
-> driven by a LangGraph state machine over hybrid retrieval on 3,000 real tickets. Slice C
-> (Dashboard + Observability) is **in progress**: LangSmith tracing and the opt-out `--explain` debug
-> mode are landing on the backend now; the single-page console is designed (Vite + React + Tailwind +
-> shadcn, served by this same FastAPI app) but its **build is paused pending a UI-design session** —
-> no dashboard yet. Evaluation and deployment land in Slices D–E (see [Roadmap](#roadmap)).
+> **Status:** Slices **A–E complete**. `/analyze` runs a LangGraph guarded-copilot workflow over
+> hybrid retrieval on 3,000 real tickets; a Vite/React console + LangSmith tracing + `--explain`
+> ship the observability layer; a LangSmith eval suite (offline + online + calibration + feedback
+> flywheel) grades it; and the whole thing is Dockerized and **deployed to Render** behind invite-code
+> auth + rate limiting. See [Roadmap](#roadmap).
 
 It's also a **learning project**: every component ships a concept doc + runnable script + self-quiz
 (see [The learning layer](#the-learning-layer)).
@@ -186,7 +187,7 @@ Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
 | **B — Agentic Workflow** | LangGraph state machine (classify → assess → score → decide → draft) | ✅ done |
 | **C — Dashboard + Observability** | Vite/React console + LangSmith tracing + `--explain` | ✅ done |
 | **D — Evaluation** | LangSmith offline + online eval, experiments, feedback flywheel, calibration | ✅ done |
-| **E — Deploy & Harden** | Docker → Render, invite-code cookie auth, rate limiting + daily cap, CI | 🚧 in progress |
+| **E — Deploy & Harden** | Docker → Render (live), invite-code cookie auth, rate limiting + daily cap, CI | ✅ done |
 
 ## Dataset & license
 
