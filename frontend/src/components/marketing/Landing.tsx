@@ -3,12 +3,12 @@ import {
   Activity,
   ArrowRight,
   GitFork,
-  ListTodo,
   MessageSquareText,
   Route,
   Sparkles,
   ShieldCheck,
 } from "lucide-react"
+import { BrandGlyph } from "@/components/BrandGlyph"
 import { InviteGate } from "@/components/console/InviteGate"
 import { CONTACT_URL, GITHUB_URL } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -164,7 +164,7 @@ function TopNav({ onGetStarted }: { onGetStarted: () => void }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-            <ListTodo className="size-4 text-primary-foreground" strokeWidth={2.2} />
+            <BrandGlyph className="size-[18px]" />
           </div>
           <div className="flex flex-col gap-px">
             <span className="text-[14px] font-extrabold tracking-[-0.02em] text-foreground">

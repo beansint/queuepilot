@@ -1077,11 +1077,11 @@
             <div class="lc-dep">direct dep · langsmith</div>
           </div>
         </div>
-        <div class="lc-what"><b>Observability / tracing.</b> Records each run as a tree of spans so you can inspect, replay, and (Slice D) evaluate a non-deterministic LLM pipeline — and it produces the clickable <code class="mono">trace</code> URL in the response.</div>
+        <div class="lc-what"><b>Observability, evaluation, and experiments.</b> Records each run as a tree of spans so you can inspect and replay a non-deterministic LLM pipeline — and the same client powers Slice D's offline/online <code class="mono">evaluate()</code> runs and the feedback flywheel, not just live tracing.</div>
         <div class="lang-meta">
-          <div class="lm-row"><span class="lm-key">Powers</span><span class="lm-val"><span class="lang-map-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Upgrade 5 — tracing / --explain</span></span></div>
-          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>@traceable</code> on Groq calls in <code>app/providers/chat.py</code>; run capture + <code>tracing_context</code> in <code>app/analyze/graph_analyzer.py</code>; summary in <code>app/analyze/trace.py</code></span></div>
-          <div class="lm-row"><span class="lm-key">Functions</span><span class="lm-val"><span class="fn">@traceable</span><span class="fn">tracing_context</span><span class="fn">get_current_run_tree</span></span></div>
+          <div class="lm-row"><span class="lm-key">Powers</span><span class="lm-val"><span class="lang-map-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Upgrade 5 — tracing / --explain</span> <span class="lang-map-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Slice D — evaluation</span></span></div>
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>@traceable</code> on Groq calls in <code>app/providers/chat.py</code>; run capture + <code>tracing_context</code> in <code>app/analyze/graph_analyzer.py</code>; summary in <code>app/analyze/trace.py</code>; <code>eval/run_experiment.py</code>, <code>eval/run_online.py</code>; feedback write-back in <code>app/feedback.py</code></span></div>
+          <div class="lm-row"><span class="lm-key">Functions</span><span class="lm-val"><span class="fn">@traceable</span><span class="fn">tracing_context</span><span class="fn">get_current_run_tree</span><span class="fn">evaluate</span><span class="fn">create_feedback</span></span></div>
         </div>
       </div>
 
@@ -1165,6 +1165,79 @@
         </div>
       </div>
 
+    </div>
+  </section>
+
+  <!-- ============ 4b. FROM CLAIM TO PROOF — EVALUATION ============ -->
+  <section id="sec-eval">
+    <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Slice D · Evaluation</span>
+    <h2>From claim to proof — the evaluation layer</h2>
+    <p class="lede">The ECE numbers above (0.33 vs 0.11) aren't a hunch — they come from a benchmark and a repeatable script. Slice D is what turns "we think it's calibrated" into "here's the number, and here's how it's checked every time the pipeline changes."</p>
+
+    <div class="lang-grid">
+
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+          <div>
+            <div class="lc-name">Offline eval</div>
+            <div class="lc-dep">held-out benchmark</div>
+          </div>
+        </div>
+        <div class="lc-what">Scored with LangSmith <span class="fn">evaluate()</span> over a benchmark built from tickets sampled <b>beyond the Pinecone index cap</b> — never embedded, so there's <b>zero retrieval leakage</b> between what was indexed and what's tested.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>eval/run_experiment.py</code>, <code>eval/dataset.py</code></span></div>
+          <div class="lm-row"><span class="lm-key">Output</span><span class="lm-val">the calibration numbers in the section above</span></div>
+        </div>
+      </div>
+
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></div>
+          <div>
+            <div class="lc-name">The evaluators</div>
+            <div class="lc-dep">eval/evaluators/</div>
+          </div>
+        </div>
+        <div class="lc-what">Four checks run per example: <b>exact-match</b> on queue/priority/type, <b>label-recall@k</b> on retrieval, a <b>calibration evaluator</b> (the ECE / reliability check itself), and an <b>LLM-as-judge</b> — deliberately a <i>different</i> model (Gemini), so the reply generator never grades its own work.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>eval/evaluators/deterministic.py</code>, <code>eval/evaluators/calibration.py</code>, <code>eval/evaluators/judge.py</code></span></div>
+        </div>
+      </div>
+
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div>
+            <div class="lc-name">Online eval</div>
+            <div class="lc-dep">production traces</div>
+          </div>
+        </div>
+        <div class="lc-what">The <i>same</i> evaluators run again, in place, against real production traces — not a static snapshot. That's how drift between the offline benchmark and live traffic gets caught.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>eval/run_online.py</code></span></div>
+        </div>
+      </div>
+
+      <div class="lang-card">
+        <div class="lang-card-head">
+          <div class="lc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
+          <div>
+            <div class="lc-name">Feedback flywheel</div>
+            <div class="lc-dep">POST /feedback</div>
+          </div>
+        </div>
+        <div class="lc-what">Thumbs and human corrections submitted via <code class="mono">POST /feedback</code> are written back as LangSmith <span class="fn">create_feedback</span> and become new eval examples — so the benchmark itself grows as the system is used, instead of staying frozen at launch.</div>
+        <div class="lang-meta">
+          <div class="lm-row"><span class="lm-key">Where</span><span class="lm-val"><code>app/feedback.py</code>, <code>app/main.py</code></span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="lang-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <span><b>Now in production (Slice E):</b> QueuePilot runs as one Docker image on Render — invite-gated and rate-limited — so the eval loop above is measuring the same build that's actually serving traffic.</span>
     </div>
   </section>
 
