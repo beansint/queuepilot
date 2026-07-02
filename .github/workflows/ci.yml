@@ -1,30 +1,72 @@
 name: CI
 
+# Slice E8 — secret-free CI: backend (ruff + mypy + offline pytest) and frontend (build + vitest).
+# The integration pytest marker is gated behind QUEUEPILOT_RUN_INTEGRATION, which is intentionally
+# left unset here, so only the offline suite runs — no external-service secrets are required.
 on:
-  push:
-    branches: [main, "slice-*"]
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
-  check:
+  backend:
+    name: backend (ruff, mypy, pytest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      # astral-sh/setup-uv installs uv and (with cache: true) caches the resolved
+      # dependency environment keyed on uv.lock, speeding up repeat runs.
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dependencies
-        run: uv sync --dev
+      # --frozen refuses to update uv.lock, guaranteeing CI installs exactly what's committed.
+      - name: "Install dependencies (incl. dev group: ruff, mypy, pytest)"
+        run: uv sync --frozen
 
       - name: Lint (ruff)
         run: uv run ruff check .
 
       - name: Type-check (mypy --strict)
-        run: uv run mypy app tests learn data
+        run: uv run mypy app eval
 
-      - name: Tests (unit only; integration is gated)
-        run: uv run pytest -q -m "not integration"
+      # Offline suite only: the `integration` marker is gated behind QUEUEPILOT_RUN_INTEGRATION,
+      # which is unset here, so live-provider tests skip automatically — no secrets needed.
+      - name: "Tests (offline; integration tests skip without QUEUEPILOT_RUN_INTEGRATION)"
+        run: uv run pytest -q
+
+  frontend:
+    name: frontend (build, vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Set up pnpm first so actions/setup-node's built-in pnpm cache (below) can find it.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (tsc -b && vite build)
+        run: pnpm build
+
+      - name: Test (vitest run)
+        run: pnpm test

@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     langsmith_project: str = "queuepilot"
     langsmith_endpoint: str | None = None
 
+    # --- Auth & rate limiting (Slice E; D16) ---
+    # Auth is DISABLED (open) whenever either is unset — see app.auth.auth_required.
+    invite_code: str | None = None
+    session_secret: str | None = None
+    # In-process (no Redis) per-IP fixed-window limit and global daily cap; see app.ratelimit.
+    rate_limit_per_min: int = 20
+    daily_cap: int = 500
+
 
 @lru_cache
 def get_settings() -> Settings:
