@@ -149,9 +149,18 @@ provider quotas; over-limit returns `429`.
 
 **Deploy to Render** (free tier) via the committed [`render.yaml`](render.yaml) Blueprint: connect the
 repo, then set the env vars in the dashboard (all `sync: false` secrets; `SESSION_SECRET` is
-auto-generated). Render builds the `Dockerfile`, injects `$PORT`, and health-checks `/health`. Free
-instances cold-start (~30–60s) after idle; a $7/mo instance stays always-on. See
+auto-generated). Render builds the `Dockerfile` itself on `git push` — **no `docker push`/registry step** —
+injects `$PORT`, and health-checks `/health`. Free instances cold-start (~30–60s) after idle; a $7/mo
+instance stays always-on. See
 [`docs/final-build-plan/12-SLICE-E-DESIGN.md`](docs/final-build-plan/12-SLICE-E-DESIGN.md).
+
+> **Deploying to a registry/AWS ECS instead?** Then you *do* push the image. On Apple Silicon, build
+> for the cloud's architecture or it'll fail with `exec format error` on amd64 Fargate:
+> ```bash
+> docker build --platform linux/amd64 -t <acct>.dkr.ecr.<region>.amazonaws.com/queuepilot:v1 .
+> docker push <acct>.dkr.ecr.<region>.amazonaws.com/queuepilot:v1   # then point an ECS task def at it
+> ```
+> `docs/learn/13-containerization.md` §7 covers the Render-vs-ECS models in full.
 
 ## The learning layer
 

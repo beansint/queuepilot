@@ -81,3 +81,45 @@ A multi-stage Dockerfile turns "runs on my machine" into a single reproducible i
 same locally and on Render — build the frontend in a throwaway Node stage, ship a lean Python runtime,
 cache by copying manifests before source, bind `0.0.0.0`, and inject secrets at run time (never bake
 them in).
+
+## 7. Beyond local — registries & deploying (Render vs AWS ECS)
+
+Three nouns beyond the image itself:
+
+- **Image** = frozen recipe · **Container** = a running instance of it · **Registry** = a server that
+  stores images so other machines can pull them (**"GitHub for images"**: `docker push`/`docker pull`,
+  tags ≈ branches (mutable), the `sha256:…` **digest** ≈ a commit SHA (immutable), layers are shared).
+  Registries you'll meet: Docker Hub (public default), GHCR (`ghcr.io`, where this Dockerfile pulls
+  `uv`), and **Amazon ECR** (a private registry inside your AWS account).
+
+**Two deploy models — know which one you're in:**
+
+| | **Render (this project)** | **AWS ECS** |
+|---|---|---|
+| Who builds the image | Render, from `./Dockerfile`, on `git push` | You / CI, then `docker push` to **ECR** |
+| Do you `docker push`? | **No** — no registry step | **Yes** — build → tag → push to ECR |
+| "How to run it" config | `render.yaml` | **Task Definition** (env, cpu/mem, ports) |
+| "Keep N running / roll updates" | the service (managed) | ECS **Service** on **Fargate**/EC2 |
+
+Render collapses the whole ECS right-hand column into "push git, we build and run it" — which is why
+this project has a `render.yaml` pointing at the Dockerfile and **never** runs `docker push`.
+
+**Where to build (cost & reproducibility):**
+- **Locally** — free, fastest to try, but not reproducible across a team.
+- **In CI** (GitHub Actions) — the recommended default: clean, reproducible, free-ish, pushes to the
+  registry.
+- **In a cloud build service** (AWS CodeBuild) — reproducible but **billed per build-minute**; prefer
+  CI/local to save cost.
+
+⚠️ **Architecture gotcha (Apple Silicon → cloud):** an M-series Mac builds **arm64** images, but ECS
+Fargate usually runs **amd64/x86_64**. An arm64 image on an amd64 task fails with `exec format error`.
+When building on a Mac *for AWS*, force the target arch:
+```bash
+docker build --platform linux/amd64 -t <acct>.dkr.ecr.<region>.amazonaws.com/queuepilot:v1 .
+```
+(Render doesn't hit this — it builds for its own runtime.)
+
+**Why no `docker-compose` here:** compose orchestrates *multiple* containers on one host (e.g. app +
+Postgres + Redis) for local dev. QueuePilot is a *single* container; its dependencies (Pinecone,
+LangSmith, Groq, Voyage) are external SaaS, not containers we run — so there's nothing to compose, and
+neither Render (`render.yaml`) nor ECS (task defs) reads a compose file anyway.

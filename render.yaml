@@ -30,14 +30,16 @@ services:
         sync: false
 
       # --- LangSmith observability (Slice C) ---
+      # Only the API key is a secret (prompted). The rest have sensible defaults so the
+      # Blueprint doesn't prompt for them — override in the dashboard if ever needed.
       - key: LANGSMITH_API_KEY
         sync: false
       - key: LANGSMITH_TRACING
-        sync: false
+        value: "true"
       - key: LANGSMITH_PROJECT
-        sync: false
+        value: queuepilot
       - key: LANGSMITH_ENDPOINT
-        sync: false
+        value: https://aws.api.smith.langchain.com
 
       # --- Public-demo hardening (Slice E: invite-code auth + signed cookie, D16) ---
       - key: INVITE_CODE
@@ -46,9 +48,9 @@ services:
       - key: SESSION_SECRET
         generateValue: true
 
-      # --- Provider registry selection (D11/D12; drop-in swap, not secret, but not defaulted
-      #     the same way in every environment, so declared explicitly here) ---
+      # --- Provider registry selection (D11/D12; drop-in swap, not secret) — defaulted to
+      #     the locked defaults so they aren't prompted; change in the dashboard to swap. ---
       - key: EMBEDDING_PROVIDER
-        sync: false
+        value: voyage
       - key: CHAT_PROVIDER
-        sync: false
+        value: groq
