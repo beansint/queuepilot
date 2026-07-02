@@ -424,7 +424,8 @@ function CalibrationSection() {
           Calibrated confidence — not the model's word
         </h2>
         <p className="mb-10 max-w-xl text-[14px] leading-relaxed text-muted-foreground">
-          Real numbers from <code className="font-mono text-[13px]">learn/10_calibration_demo.py</code>.
+          Benchmarked against real outcomes — here's how a model's self-estimate and QueuePilot's
+          calibrated score actually compare.
         </p>
 
         <div className="grid gap-4 lg:grid-cols-2">
