@@ -55,5 +55,11 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | Offline vs online eval | D11 | `docs/learn/11-eval.md` | `learn/11_eval.py` | **done** | Offline eval is a reproducible, pre-deploy gate — fixed target, fixed dataset, deterministic evaluators, same numbers every run — while online eval grades real production traffic and human feedback post-deploy; QueuePilot runs both (`eval/run_experiment.py` + `eval/run_online.py` + `POST /feedback`) because each sees a failure mode the other structurally cannot. |
 | Building an eval dataset | D12 | `docs/learn/12-eval-datasets.md` | `learn/12_eval_datasets.py` | **done** | A held-out split only earns the word "held-out" when leakage is checked by assertion, not assumed by convention — QueuePilot samples strictly from records beyond the indexing cap, stratifies by label, hand-injects edge cases, and fails loudly the instant an eval id turns up in the indexed set. |
 
+## Slice E
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| Containerization (Docker, multi-stage, local run) | E3 | `docs/learn/13-containerization.md` | `learn/13_containerization.py` | **done** | A multi-stage Dockerfile builds the React bundle in a throwaway Node stage and ships a lean Python runtime that copies just the built `dist` — cache by copying dependency manifests before source, bind `0.0.0.0` so the port is reachable outside the container, respect `$PORT`, and inject `.env` at run time (never bake secrets into a layer) so one image runs identically locally and on Render. |
+| Securing a public API (invite cookie, rate limit, daily cap) | E7 | `docs/learn/14-securing-a-public-api.md` | `learn/14_securing_a_public_api.py` | not-started | — |
+
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_
