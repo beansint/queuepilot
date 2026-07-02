@@ -32,23 +32,28 @@ def reliability_table(
 
     Returns:
         One row per non-empty bucket: ``{"lo", "hi", "n", "claimed", "accuracy"}`` where
-        ``claimed`` is the bucket midpoint (capped at 1.0) and ``accuracy`` is the
-        fraction of examples in that bucket that were actually correct.
+        ``claimed`` is the MEAN of the predicted confidences that fell into that bucket
+        (standard ECE's "mean predicted confidence per bin" — not the bucket midpoint)
+        and ``accuracy`` is the fraction of examples in that bucket that were actually
+        correct.
     """
     resolved_buckets = buckets if buckets is not None else DEFAULT_BUCKETS
     rows: list[dict[str, Any]] = []
     for lo, hi in resolved_buckets:
-        selected = [correct for (correct, confidence) in pairs if lo <= confidence < hi]
+        selected = [
+            (correct, confidence) for (correct, confidence) in pairs if lo <= confidence < hi
+        ]
         if not selected:
             continue
-        accuracy = sum(selected) / len(selected)
-        midpoint = min((lo + hi) / 2, 1.0)
+        n = len(selected)
+        accuracy = sum(correct for correct, _confidence in selected) / n
+        mean_confidence = sum(confidence for _correct, confidence in selected) / n
         rows.append(
             {
                 "lo": lo,
                 "hi": hi,
-                "n": len(selected),
-                "claimed": midpoint,
+                "n": n,
+                "claimed": mean_confidence,
                 "accuracy": accuracy,
             }
         )
@@ -60,8 +65,11 @@ def expected_calibration_error(
 ) -> float:
     """Expected Calibration Error: weighted mean |claimed - accuracy| across buckets.
 
-    ``ECE = sum_over_buckets(|claimed - accuracy| * n_in_bucket) / total_n``. Lower is
-    better; 0.0 means "70% confident" really does mean "right ~70% of the time".
+    Standard ECE: ``ECE = sum_over_buckets(|mean_confidence - accuracy| * n_in_bucket) /
+    total_n``, where ``mean_confidence`` (``claimed`` in ``reliability_table``) is the
+    MEAN of the predicted confidences that fell into that bucket, not the bucket
+    midpoint. Lower is better; 0.0 means "70% confident" really does mean "right ~70% of
+    the time".
     """
     total = len(pairs)
     if total == 0:

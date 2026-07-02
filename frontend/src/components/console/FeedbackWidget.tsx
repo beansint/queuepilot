@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChevronDown, MessageSquarePlus, ThumbsDown, ThumbsUp } from "lucide-react"
 import { toast } from "sonner"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -9,15 +9,20 @@ import type { AnalyzeResponse } from "@/lib/types"
 
 interface FeedbackWidgetProps {
   response: AnalyzeResponse
+  /** The ticket text that was analyzed to produce `response`, used so corrections carry enough
+   * context to be stored as eval data. */
+  submittedText?: string
 }
 
 const DISABLED_REASON = "Feedback needs tracing enabled — no run to attach to"
 
-export function FeedbackWidget({ response }: FeedbackWidgetProps) {
+export function FeedbackWidget({ response, submittedText }: FeedbackWidgetProps) {
   const runId = response.trace?.run_id
   const disabled = response.trace?.enabled !== true || !runId
 
-  const [thumbs, setThumbs] = useState<0 | 1 | null>(null)
+  // `selectedScore` tracks the user's chosen thumb (0 | 1) so a later correction submit can
+  // preserve a prior thumbs-up instead of always overwriting it with score: 0.
+  const [selectedScore, setSelectedScore] = useState<0 | 1 | null>(null)
   const [submittingThumbs, setSubmittingThumbs] = useState(false)
   const [correctionOpen, setCorrectionOpen] = useState(false)
   const [queue, setQueue] = useState(response.queue ?? "")
@@ -27,12 +32,27 @@ export function FeedbackWidget({ response }: FeedbackWidgetProps) {
   const [submittingCorrection, setSubmittingCorrection] = useState(false)
   const [correctionSent, setCorrectionSent] = useState(false)
 
+  // Reset all feedback state whenever a new analysis run loads (different run_id), so thumbs/
+  // correction state from the previous ticket doesn't leak into the new one.
+  useEffect(() => {
+    setSelectedScore(null)
+    setSubmittingThumbs(false)
+    setCorrectionOpen(false)
+    setQueue(response.queue ?? "")
+    setPriority(response.priority ?? "")
+    setType(response.category ?? "")
+    setComment("")
+    setSubmittingCorrection(false)
+    setCorrectionSent(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response.trace?.run_id])
+
   async function handleThumbs(score: 0 | 1) {
     if (disabled || submittingThumbs || !runId) return
     setSubmittingThumbs(true)
     try {
-      await postFeedback({ run_id: runId, score })
-      setThumbs(score)
+      await postFeedback({ run_id: runId, score, text: submittedText ?? null })
+      setSelectedScore(score)
       toast.success("Thanks for the feedback")
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't submit feedback"
@@ -48,13 +68,16 @@ export function FeedbackWidget({ response }: FeedbackWidgetProps) {
     try {
       await postFeedback({
         run_id: runId,
-        score: 0,
+        // Preserve a prior thumbs-up rather than contradicting it — only default to 0
+        // (thumbs-down) when the user never picked a thumb.
+        score: selectedScore ?? 0,
         correction: {
           ...(queue.trim() ? { queue: queue.trim() } : {}),
           ...(priority.trim() ? { priority: priority.trim() } : {}),
           ...(type.trim() ? { type: type.trim() } : {}),
         },
         comment: comment.trim() ? comment.trim() : null,
+        text: submittedText ?? null,
       })
       setCorrectionSent(true)
       toast.success("Thanks for the feedback")
@@ -71,7 +94,7 @@ export function FeedbackWidget({ response }: FeedbackWidgetProps) {
       <button
         type="button"
         aria-label="Thumbs up — this analysis was correct"
-        aria-pressed={thumbs === 1}
+        aria-pressed={selectedScore === 1}
         disabled={disabled || submittingThumbs}
         onClick={() => handleThumbs(1)}
         className="flex items-center justify-center rounded-lg border border-border bg-white p-2 text-foreground transition-colors hover:border-positive hover:text-positive disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-positive aria-pressed:bg-positive/10 aria-pressed:text-positive"
@@ -81,14 +104,14 @@ export function FeedbackWidget({ response }: FeedbackWidgetProps) {
       <button
         type="button"
         aria-label="Thumbs down — this analysis was wrong"
-        aria-pressed={thumbs === 0}
+        aria-pressed={selectedScore === 0}
         disabled={disabled || submittingThumbs}
         onClick={() => handleThumbs(0)}
         className="flex items-center justify-center rounded-lg border border-border bg-white p-2 text-foreground transition-colors hover:border-destructive hover:text-destructive disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-destructive aria-pressed:bg-destructive/10 aria-pressed:text-destructive"
       >
         <ThumbsDown className="size-3.75" />
       </button>
-      {thumbs !== null && (
+      {selectedScore !== null && (
         <span className="text-[13px] font-medium text-muted-foreground">Thanks for the feedback</span>
       )}
     </div>

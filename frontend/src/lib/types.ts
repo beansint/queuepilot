@@ -73,6 +73,7 @@ export interface FeedbackRequest {
   score: 0 | 1
   correction?: { queue?: string; priority?: string; type?: string } | null
   comment?: string | null
+  text?: string | null
 }
 
 export interface AnalyzeResponse {

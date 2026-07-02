@@ -136,6 +136,63 @@ def test_feedback_correction_appends_example(
     fake_client.create_dataset.assert_not_called()
 
 
+def test_feedback_correction_with_text_includes_text_in_inputs(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When `text` is supplied alongside a correction, it's attached to `inputs` so the
+    flywheel example is actually usable by eval.dataset's analyze_target (D15 note)."""
+    fake_client = Mock()
+    fake_client.has_dataset.return_value = True
+    _patch_feedback_client(monkeypatch, fake_client)
+
+    correction = {"queue": "Billing", "priority": "high"}
+    resp = client.post(
+        "/feedback",
+        json={
+            "run_id": "run-text-1",
+            "score": 0,
+            "correction": correction,
+            "text": "My invoice looks wrong this month.",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    fake_client.create_examples.assert_called_once_with(
+        dataset_name="queuepilot-feedback",
+        examples=[
+            {
+                "inputs": {
+                    "text": "My invoice looks wrong this month.",
+                    "run_id": "run-text-1",
+                },
+                "outputs": correction,
+            }
+        ],
+    )
+
+
+def test_feedback_correction_without_text_omits_text_from_inputs(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Omitting `text` preserves the pre-existing run_id-only inputs shape."""
+    fake_client = Mock()
+    fake_client.has_dataset.return_value = True
+    _patch_feedback_client(monkeypatch, fake_client)
+
+    correction = {"queue": "Billing"}
+    resp = client.post(
+        "/feedback",
+        json={"run_id": "run-no-text", "score": 0, "correction": correction},
+    )
+
+    assert resp.status_code == 200
+    fake_client.create_examples.assert_called_once_with(
+        dataset_name="queuepilot-feedback",
+        examples=[{"inputs": {"run_id": "run-no-text"}, "outputs": correction}],
+    )
+
+
 def test_feedback_correction_creates_dataset_if_absent(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

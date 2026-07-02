@@ -75,6 +75,17 @@ class FeedbackRequest(BaseModel):
     score: int
     correction: dict[str, Any] | None = None
     comment: str | None = None
+    text: str | None = Field(
+        default=None,
+        description=(
+            "Optional original ticket text, additive for the correction flywheel "
+            "(D15 note). When present alongside `correction`, it is attached to the "
+            "flywheel example's `inputs` next to `run_id` so eval.dataset's "
+            "`analyze_target` (which needs `inputs['text']`) can replay flywheel "
+            "corrections as usable eval data. Omitting it keeps the pre-existing "
+            "`{'run_id': ...}`-only behavior."
+        ),
+    )
 
     @field_validator("run_id")
     @classmethod

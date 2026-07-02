@@ -8,6 +8,7 @@ frontend is paused, so this degrades to a placeholder page when frontend/dist is
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, Query
@@ -56,12 +57,15 @@ def analyze(
     return get_graph_analyzer().analyze(req.text, explain=explain)
 
 
+@lru_cache(maxsize=1)
 def _get_feedback_client() -> Client | None:
-    """Lazily build the LangSmith client used by ``POST /feedback``.
+    """Build (and cache) the LangSmith client used by ``POST /feedback``.
 
-    Not cached: ``get_feedback_client()`` is cheap (env export + ``Client()`` construction)
-    and re-checking settings each call keeps the endpoint responsive to config changes
-    without a stale singleton. Returns ``None`` when LangSmith is unconfigured.
+    Cached like ``app.analyze.graph_analyzer.get_graph_analyzer`` — building a fresh
+    ``langsmith.Client()`` (and its connection pool/threads) on every request is wasteful
+    since LangSmith config doesn't change within a process lifetime. Returns ``None``
+    (also cached) when LangSmith is unconfigured, so unconfigured deployments no-op cheaply
+    on every call rather than re-attempting client construction each time.
     """
     return get_feedback_client()
 

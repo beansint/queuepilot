@@ -6,6 +6,14 @@ project via ``client.list_runs(is_root=True, ...)``, runs the deterministic eval
 prints an aggregate snapshot card. Needs no eval dataset — it grades real traffic in
 place, which is the "online" half of D11's offline-vs-online distinction.
 
+Reference-based metrics (exact-match / label-recall / ECE) need LABELED traces (a known
+``queue``/``priority``/``type``), which raw production traffic does not carry — they are
+correctly "n/a" here, and this module prints an explicit note explaining why so the "n/a"
+reads as "expected", not "broken". The genuine online signal this module DOES produce is
+aggregated human feedback: it reads each fetched run's ``user_thumbs`` feedback (attached
+via ``POST /feedback``, see ``app.feedback``) via ``client.list_feedback(run_ids=...,
+feedback_key=["user_thumbs"])`` and reports a satisfaction rate (mean thumbs score) + count.
+
 CLI:
     uv run python -m eval.run_online --limit 20
 """
@@ -13,6 +21,7 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from typing import Any
 
@@ -27,7 +36,17 @@ from eval.evaluators import (
     type_match,
 )
 
+_logger = logging.getLogger(__name__)
+
 _PER_EXAMPLE_EVALUATORS = [queue_match, priority_match, type_match, label_recall_at_k]
+
+_REFERENCE_METRICS_NOTE = (
+    "NOTE: reference-based metrics (queue/priority/type exact-match, label-recall@k, ECE) "
+    "require LABELED traces (a known ground-truth queue/priority/type) and are correctly "
+    "n/a here — raw production traffic carries no reference labels. Use "
+    "`eval.run_experiment` (the offline runner) against the labeled eval dataset for those "
+    "numbers. The genuine online signal below is aggregated human feedback (`user_thumbs`)."
+)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -55,6 +74,34 @@ def _run_inputs_outputs(run: Any) -> tuple[dict[str, Any], dict[str, Any]] | Non
     return inputs, outputs
 
 
+def _aggregate_human_feedback(client: Any, run_ids: list[str]) -> dict[str, Any] | None:
+    """Read ``user_thumbs`` feedback for *run_ids* and return ``{"mean", "n"}``, or ``None``.
+
+    Uses ``client.list_feedback(run_ids=..., feedback_key=["user_thumbs"])`` (the
+    installed ``langsmith`` SDK's read API for feedback objects — confirmed against the
+    installed ``Client.list_feedback`` signature, which filters by ``run_ids`` and
+    ``feedback_key``). Returns ``None`` (never a fabricated 0.0) when there are no run ids,
+    the read fails, or no run in the batch has any ``user_thumbs`` feedback yet — callers
+    must render that as "n/a", not a real metric.
+    """
+    if not run_ids:
+        return None
+    try:
+        feedback_items = list(
+            client.list_feedback(run_ids=run_ids, feedback_key=["user_thumbs"])
+        )
+    except Exception:
+        _logger.warning("run_online: client.list_feedback failed; human feedback n/a.")
+        return None
+
+    scores = [
+        float(item.score) for item in feedback_items if isinstance(item.score, int | float)
+    ]
+    if not scores:
+        return None
+    return {"mean": sum(scores) / len(scores), "n": len(scores)}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -76,6 +123,21 @@ def main(argv: list[str] | None = None) -> int:
             limit=args.limit,
         )
     )
+
+    run_ids = [str(run.id) for run in runs if getattr(run, "id", None) is not None]
+
+    print(_REFERENCE_METRICS_NOTE)
+    human_feedback = _aggregate_human_feedback(client, run_ids)
+    if human_feedback is not None:
+        print(
+            f"Human feedback (user_thumbs): mean={human_feedback['mean']:.3f} "
+            f"over n={human_feedback['n']} rated run(s) (of {len(run_ids)} fetched)."
+        )
+    else:
+        print(
+            f"Human feedback (user_thumbs): n/a — no user_thumbs feedback found on the "
+            f"{len(run_ids)} fetched run(s) yet."
+        )
 
     pairs = [_run_inputs_outputs(run) for run in runs]
     usable = [p for p in pairs if p is not None]
@@ -113,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     metrics: dict[str, Any] = {
         "n": len(usable),
         "config": {"project": project_name, "mode": "online"},
+        "human_feedback": human_feedback,
     }
     for key, total in sums.items():
         metrics[key] = total / counts[key] if counts.get(key) else None

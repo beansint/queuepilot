@@ -95,12 +95,22 @@ def reply_quality(
         f"CANDIDATE REPLY:\n{suggested_reply}"
     )
 
-    result = judge.complete_json(_JUDGE_SYSTEM_PROMPT, user_prompt)
-
-    groundedness = _clamp_1_to_5(result.get("groundedness"))
-    helpfulness = _clamp_1_to_5(result.get("helpfulness"))
-    rationale = str(result.get("rationale") or "")
-
-    mean_normalized = (_normalize(groundedness) + _normalize(helpfulness)) / 2.0
+    try:
+        result = judge.complete_json(_JUDGE_SYSTEM_PROMPT, user_prompt)
+        groundedness = _clamp_1_to_5(result.get("groundedness"))
+        helpfulness = _clamp_1_to_5(result.get("helpfulness"))
+        rationale = str(result.get("rationale") or "")
+        mean_normalized = (_normalize(groundedness) + _normalize(helpfulness)) / 2.0
+    except Exception as exc:
+        # Any judge failure (network/rate-limit error, non-JSON output raising ValueError,
+        # etc.) must degrade to the documented skip contract, never propagate. The comment
+        # carries ONLY the exception class name — never str(exc), which could echo request
+        # payloads or key material back into a LangSmith-visible comment field.
+        _logger.warning("reply_quality: judge call failed (%s)", type(exc).__name__)
+        return {
+            "key": "reply_quality",
+            "score": None,
+            "comment": f"judge error: {type(exc).__name__}",
+        }
 
     return {"key": "reply_quality", "score": mean_normalized, "comment": rationale}

@@ -3,11 +3,17 @@
 Builds a leakage-free, stratified sample of held-out (never-embedded) tickets plus
 hand-authored edge cases, and serializes them to JSONL.
 
-Leakage guarantee: ``data/ingest.py`` indexes only ``records[:CORPUS_CAP]`` (the first
-``CORPUS_CAP`` normalized English rows, in CSV order). Everything at index ``CORPUS_CAP``
-and beyond was never embedded or written to Pinecone, so sampling eval examples
-exclusively from that held-out tail makes retrieval leakage structurally impossible —
-enforced below by an explicit assertion, not just convention.
+Leakage guarantee (best-effort, structural check only): ``data/ingest.py`` is *intended*
+to index only ``records[:settings.corpus_cap]`` (the first ``CORPUS_CAP`` normalized
+English rows, in CSV order), so sampling eval examples exclusively from the tail beyond
+that cut is designed to avoid retrieval leakage. This ASSUMES the live Pinecone index was
+actually built with the current ``settings.corpus_cap`` — the assertion below only
+verifies this module's own slice arithmetic (that the sampled ids don't fall in
+``records[:cap]``); it cannot see what Pinecone actually contains. If ingest was ever run
+with a different ``--cap`` (e.g. a larger value than the current ``settings.corpus_cap``),
+rows between the two caps were embedded into the index but this code would still treat
+them as held-out — real leakage this assertion cannot detect. Keep ingest's cap and
+``settings.corpus_cap`` in sync, or re-run ingest, whenever this guarantee matters.
 """
 
 from __future__ import annotations
@@ -97,7 +103,11 @@ def _stratified_sample(
         rng.shuffle(sampled)
         sampled = sampled[:target]
     elif len(sampled) < target:
-        remaining_pool = [r for r in eligible if r not in sampled]
+        # Track already-sampled ids in a set for O(1) membership tests instead of an
+        # O(n) linear scan with full pydantic-model equality per candidate (O(n*m)
+        # overall) — ids are unique per TicketRecord, so this preserves identical results.
+        sampled_ids = {r.id for r in sampled}
+        remaining_pool = [r for r in eligible if r.id not in sampled_ids]
         rng.shuffle(remaining_pool)
         sampled.extend(remaining_pool[: target - len(sampled)])
 
@@ -123,8 +133,11 @@ def build_eval_dataset(
         plus the fixed ``EDGE_CASES`` (tagged ``"edge"``).
 
     Raises:
-        AssertionError: if any sampled example id collides with an *indexed* (embedded)
-            record id — the leakage guarantee this whole design rests on.
+        AssertionError: if any sampled example id collides with an id in
+            ``records[:settings.corpus_cap]`` per this module's own slice arithmetic. This
+            is a best-effort structural check, not proof against Pinecone — see the module
+            docstring for the assumption it rests on (ingest was run with the current
+            ``settings.corpus_cap``).
     """
     from eval.fixtures import EDGE_CASES  # local import: avoids a circular import at module load
     from eval.settings import get_eval_settings

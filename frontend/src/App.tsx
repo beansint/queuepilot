@@ -140,7 +140,7 @@ export default function App() {
             <ConfidenceHero response={result} />
             <AttributeTiles response={result} />
             <SuggestedReply response={result} />
-            <FeedbackWidget response={result} />
+            <FeedbackWidget response={result} submittedText={submitted?.text} />
             <SimilarTicketsTable tickets={result.similar_tickets} />
             {result.debug && (
               <ExplainPanel

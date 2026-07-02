@@ -93,6 +93,47 @@ def test_reply_quality_none_when_suggested_reply_empty(monkeypatch: pytest.Monke
     assert result_whitespace["score"] is None
 
 
+def test_reply_quality_skips_gracefully_on_judge_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Any exception from complete_json (network/rate-limit/non-JSON) degrades to a skip
+    dict, per the documented graceful-skip contract -- it must never propagate."""
+
+    class _RaisingJudge:
+        def complete_json(
+            self, system: str, user: str, *, temperature: float = 0.0
+        ) -> dict[str, Any]:
+            raise ValueError("model returned invalid JSON: <secret-looking-payload>")
+
+    monkeypatch.setattr(judge_mod, "_build_judge", lambda: _RaisingJudge())
+
+    result = reply_quality(_INPUTS, _OUTPUTS, _REFERENCE)
+
+    assert result == {"key": "reply_quality", "score": None, "comment": "judge error: ValueError"}
+    # The raw exception text (which could carry request payloads/keys) must never leak.
+    assert "secret-looking-payload" not in result["comment"]
+
+
+def test_reply_quality_skips_gracefully_on_network_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _NetworkErrorJudge:
+        def complete_json(
+            self, system: str, user: str, *, temperature: float = 0.0
+        ) -> dict[str, Any]:
+            raise ConnectionError("rate limited")
+
+    monkeypatch.setattr(judge_mod, "_build_judge", lambda: _NetworkErrorJudge())
+
+    result = reply_quality(_INPUTS, _OUTPUTS, _REFERENCE)
+
+    assert result == {
+        "key": "reply_quality",
+        "score": None,
+        "comment": "judge error: ConnectionError",
+    }
+
+
 def test_reply_quality_none_when_no_gemini_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(judge_mod, "_build_judge", lambda: None)
     result = reply_quality(_INPUTS, _OUTPUTS, _REFERENCE)

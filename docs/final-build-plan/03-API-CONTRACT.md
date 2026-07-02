@@ -60,6 +60,17 @@ it does not depend on LangSmith being configured.
 | sentiment, sla_risk, escalate, clarification, suggested_reply | **B** |
 | trace, debug | **C** |
 
+### Errors
+- `422` — validation failure (missing `text`, or `len(text) > MAX_INPUT_CHARS`).
+- `429` — rate limit exceeded (Slice E).
+- `500` — unexpected; body `{"detail": "..."}` with no secret leakage.
+
+### Invariants
+- `confidence ∈ [0, 1]`.
+- `similar_tickets` ordered by descending `score`.
+- Reserved fields are omitted/`null` until their slice lands — **never** repurposed.
+- No server-only data (keys, raw provider responses) ever appears in the response.
+
 ## `POST /feedback` (Slice D — D15)
 
 Additive endpoint for the human-feedback flywheel. Does **not** touch `/analyze`. The join key is
@@ -72,25 +83,16 @@ class FeedbackRequest(BaseModel):
     score: int                        # thumbs: 1 (up) or 0 (down)
     correction: dict | None = None    # optional human fix, e.g. {"queue": "...", "priority": "..."}
     comment: str | None = None
+    text: str | None = None           # optional original ticket text (additive; flywheel usability)
 ```
 
 ### Response
 → `200 {"ok": true}`. Calls `langsmith.create_feedback(run_id, key="user_thumbs", score, comment,
 trace_id=run_id)`; when `correction` is present, also appends a corrected example to the
-`queuepilot-feedback` dataset. **Graceful no-op** (still `200`, logged) when LangSmith is
-unconfigured — feedback is best-effort, never blocks the caller.
+`queuepilot-feedback` dataset — with `inputs={"text": text, "run_id": run_id}` when `text` was
+supplied, else `inputs={"run_id": run_id}` (best-effort). **Graceful no-op** (still `200`, logged)
+when LangSmith is unconfigured — feedback is best-effort, never blocks the caller.
 
-### Errors
+### Errors (feedback)
 - `422` — validation failure (missing `run_id`, `score` not in {0,1}).
 - `500` — unexpected; body `{"detail": "..."}` with no secret leakage.
-
-### Errors
-- `422` — validation failure (missing `text`, or `len(text) > MAX_INPUT_CHARS`).
-- `429` — rate limit exceeded (Slice E).
-- `500` — unexpected; body `{"detail": "..."}` with no secret leakage.
-
-### Invariants
-- `confidence ∈ [0, 1]`.
-- `similar_tickets` ordered by descending `score`.
-- Reserved fields are omitted/`null` until their slice lands — **never** repurposed.
-- No server-only data (keys, raw provider responses) ever appears in the response.

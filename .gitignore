@@ -38,3 +38,8 @@ design/
 # Frontend build + deps (source lives in frontend/, dist built in Docker for Slice E)
 frontend/node_modules/
 frontend/dist/
+
+# Generated eval snapshot cards (go stale; regenerate via eval/run_experiment.py or
+# eval/run_online.py). eval/snapshots/.gitkeep is intentionally NOT covered by this.
+eval/snapshots/*.json
+eval/snapshots/*.md

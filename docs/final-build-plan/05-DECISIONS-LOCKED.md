@@ -137,6 +137,13 @@ All decisions below: **2026-07-02**.
    `frontend/` console.
 5. **CI deferred** — the eval runner is local/manual (Personal token); the CI seam (LangSmith Service
    key, nightly Action) is documented for Slice E, not wired in Slice D.
+6. **`FeedbackRequest.text` (additive, post-hoc)** — `text` is an OPTIONAL additive field on
+   `FeedbackRequest` (does not change the `POST /feedback` request shape's required fields). When a
+   caller supplies the original ticket text alongside a `correction`, it is attached to the
+   `queuepilot-feedback` flywheel example's `inputs` (`{"text": ..., "run_id": ...}`) instead of just
+   `{"run_id": ...}`, so `eval.dataset`'s `analyze_target` (which reads `inputs["text"]`) can actually
+   replay flywheel corrections as usable eval data. Omitting `text` preserves the original
+   `run_id`-only behavior.
 **Considered:** feedback folded into `/analyze` (rejected — different verb, audience, and lifecycle);
 reusing Groq as judge (rejected — self-preference bias); seeded random split (rejected — forces a
 re-index for no gain over the post-cap pool); wiring CI now (rejected — pulls Slice-E ops forward).

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 from langsmith import Client
 
@@ -99,9 +100,17 @@ def submit_feedback(req: FeedbackRequest, *, client: Client | None = None) -> di
         try:
             if not client.has_dataset(dataset_name=_FEEDBACK_DATASET_NAME):
                 client.create_dataset(_FEEDBACK_DATASET_NAME)
+            # `text` is optional (D15 additive field, app/schemas.py) — when the caller
+            # supplies the original ticket text, include it in `inputs` so this example is
+            # actually usable by eval.dataset's `analyze_target` (which needs
+            # `inputs["text"]`), not just a `run_id` join key. Still best-effort: falls
+            # back to the run_id-only shape when `text` is absent.
+            inputs: dict[str, Any] = {"run_id": req.run_id}
+            if req.text:
+                inputs = {"text": req.text, "run_id": req.run_id}
             client.create_examples(
                 dataset_name=_FEEDBACK_DATASET_NAME,
-                examples=[{"inputs": {"run_id": req.run_id}, "outputs": req.correction}],
+                examples=[{"inputs": inputs, "outputs": req.correction}],
             )
         except Exception:
             _logger.exception(
