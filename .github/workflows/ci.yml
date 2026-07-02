@@ -52,8 +52,12 @@ jobs:
         uses: actions/checkout@v4
 
       # Set up pnpm first so actions/setup-node's built-in pnpm cache (below) can find it.
+      # `version` is required since package.json has no `packageManager` field (the Dockerfile
+      # pins pnpm@9 via corepack — keep these in sync).
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
