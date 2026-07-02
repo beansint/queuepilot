@@ -114,3 +114,39 @@ data sources, and different availability, e.g. `debug` must work with zero LangS
 **Why:** consistent with `03`'s reserved-field, forward-compatible envelope design (D-philosophy of
 additive-only fields) — old callers see `debug: null` and are unaffected; `--explain` consumers get a
 self-contained, offline-testable reasoning trail without depending on LangSmith being configured.
+
+---
+
+All decisions below: **2026-07-02**.
+
+### D15 — Slice D evaluation: new `POST /feedback` endpoint + eval design (extends 03)
+**Date:** 2026-07-02.
+**Choice:** Slice D adds an evaluation layer with these locked decisions:
+1. **New endpoint `POST /feedback`** (extends the 🔒 `03-API-CONTRACT.md` — additive, does not touch
+   `/analyze`): body `{run_id, score, correction?, comment?}` → `langsmith.create_feedback` on the
+   referenced run (join key = `trace.run_id` from Slice C), and appends corrections to a
+   `queuepilot-feedback` dataset (the flywheel). Returns `200 {"ok": true}`; graceful `200` no-op +
+   log when LangSmith is unconfigured; `422` on bad body.
+2. **LLM-as-judge = Gemini** (different-model judge), not Groq — Groq `llama-3.3-70b` generates the
+   suggested replies, so grading with the same model is self-preference bias. Gemini key already
+   configured; still free.
+3. **Eval dataset = post-cap held-out split** — sampled from English rows **beyond** `CORPUS_CAP`
+   (indices `[3000:]`, provably not in the Pinecone index → zero retrieval leakage), stratified by
+   queue×priority, plus hand-authored edge cases. A leakage assertion enforces the guarantee.
+4. **Feedback surface = `POST /feedback` API + a console `FeedbackWidget`** in the existing built-out
+   `frontend/` console.
+5. **CI deferred** — the eval runner is local/manual (Personal token); the CI seam (LangSmith Service
+   key, nightly Action) is documented for Slice E, not wired in Slice D.
+6. **`FeedbackRequest.text` (additive, post-hoc)** — `text` is an OPTIONAL additive field on
+   `FeedbackRequest` (does not change the `POST /feedback` request shape's required fields). When a
+   caller supplies the original ticket text alongside a `correction`, it is attached to the
+   `queuepilot-feedback` flywheel example's `inputs` (`{"text": ..., "run_id": ...}`) instead of just
+   `{"run_id": ...}`, so `eval.dataset`'s `analyze_target` (which reads `inputs["text"]`) can actually
+   replay flywheel corrections as usable eval data. Omitting `text` preserves the original
+   `run_id`-only behavior.
+**Considered:** feedback folded into `/analyze` (rejected — different verb, audience, and lifecycle);
+reusing Groq as judge (rejected — self-preference bias); seeded random split (rejected — forces a
+re-index for no gain over the post-cap pool); wiring CI now (rejected — pulls Slice-E ops forward).
+**Why:** closes the "LangSmith eval/experiments" job gap with an additive, offline-testable eval layer
+that keeps `/analyze` untouched and validates the A/B confidence blend via a calibration evaluator.
+Full design: `11-SLICE-D-DESIGN.md`.

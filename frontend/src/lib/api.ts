@@ -1,4 +1,4 @@
-import type { AnalyzeResponse } from "@/lib/types"
+import type { AnalyzeResponse, FeedbackRequest } from "@/lib/types"
 
 /**
  * Analyze a ticket via POST /analyze?explain=true (same-origin: the Vite dev
@@ -28,4 +28,30 @@ export async function analyzeTicket(text: string): Promise<AnalyzeResponse> {
   }
 
   return (await res.json()) as AnalyzeResponse
+}
+
+/**
+ * Post human feedback (thumbs + optional correction) for a prior /analyze run,
+ * joined by `run_id` (Slice C's `trace.run_id`). Same-origin, same error-handling
+ * style as `analyzeTicket`.
+ */
+export async function postFeedback(req: FeedbackRequest): Promise<void> {
+  const res = await fetch("/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  })
+
+  if (!res.ok) {
+    let detail = `Request failed with status ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.detail) {
+        detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)
+      }
+    } catch {
+      // ignore body parse failure — fall back to status text
+    }
+    throw new Error(detail)
+  }
 }
