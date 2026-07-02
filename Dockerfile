@@ -16,8 +16,9 @@ RUN pnpm build
 
 # ---- Stage 2: Python runtime (uv) — API + built console --------------------
 FROM python:3.12-slim AS runtime
-# uv gives fast, reproducible installs straight from uv.lock.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# uv gives fast, reproducible installs straight from uv.lock. Pin the uv version (not :latest)
+# so a rebuild can't silently pull a uv that changes resolution / breaks `uv sync --frozen`.
+COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /uvx /bin/
 WORKDIR /app
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \

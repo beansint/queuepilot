@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from app.analyze.graph_analyzer import get_graph_analyzer
 from app.auth import (
+    COOKIE_MAX_AGE,
     COOKIE_NAME,
     auth_required,
     is_request_authenticated,
@@ -27,7 +28,7 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.feedback import get_feedback_client, submit_feedback
-from app.ratelimit import rate_limit
+from app.ratelimit import login_rate_limit, rate_limit
 from app.schemas import AnalyzeRequest, AnalyzeResponse, FeedbackRequest
 
 app = FastAPI(
@@ -50,7 +51,7 @@ class LoginRequest(BaseModel):
     code: str
 
 
-@app.post("/login")
+@app.post("/login", dependencies=[Depends(login_rate_limit)])
 def login(req: LoginRequest, response: Response) -> dict[str, bool]:
     """Exchange the shared invite code for a signed HTTP-only session cookie.
 
@@ -63,11 +64,16 @@ def login(req: LoginRequest, response: Response) -> dict[str, bool]:
     if not auth_required():
         return {"ok": True}
     # settings.invite_code is guaranteed non-empty here (auth_required() checked both).
-    if not hmac.compare_digest(req.code, settings.invite_code or ""):
+    # Compare as bytes: hmac.compare_digest raises TypeError on non-ASCII str inputs, so a
+    # code with non-ASCII characters would otherwise 500 instead of returning 401.
+    submitted = req.code.encode("utf-8")
+    expected = (settings.invite_code or "").encode("utf-8")
+    if not hmac.compare_digest(submitted, expected):
         raise HTTPException(status_code=401, detail="invalid invite code")
     response.set_cookie(
         key=COOKIE_NAME,
         value=issue_cookie_value(),
+        max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
         secure=(settings.environment != "development"),

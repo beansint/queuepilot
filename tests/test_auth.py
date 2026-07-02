@@ -97,6 +97,17 @@ def test_verify_malformed_token_returns_none(bad_token: str) -> None:
     assert verify(bad_token, "secret-key") is None
 
 
+def test_verify_enforces_max_age() -> None:
+    """With max_age set, a token older than the window is rejected; a fresh one still verifies.
+
+    The signed ``iat`` is covered by the HMAC, so the age check cannot be forged. Using
+    max_age=-1 forces even a just-issued token (age ~0) over the limit.
+    """
+    token = sign("authenticated", "secret-key")
+    assert verify(token, "secret-key", max_age=3600) == "authenticated"
+    assert verify(token, "secret-key", max_age=-1) is None
+
+
 # ---------------------------------------------------------------------------
 # Auth configured: /login, /analyze gating, /auth/status
 # ---------------------------------------------------------------------------
@@ -116,6 +127,16 @@ def test_login_right_code_sets_cookie_and_200(
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
     assert "qp_session" in resp.cookies
+
+
+def test_login_non_ascii_code_returns_401_not_500(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-ASCII invite code must be a clean 401, not a 500 — hmac.compare_digest
+    raises TypeError on non-ASCII str, so the handler compares bytes."""
+    _configure_auth(monkeypatch)
+    resp = client.post("/login", json={"code": "café🔑"})
+    assert resp.status_code == 401
 
 
 def test_analyze_without_cookie_returns_401(

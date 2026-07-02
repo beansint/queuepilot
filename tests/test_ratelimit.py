@@ -14,6 +14,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+import app.auth as auth_mod
+import app.main as main_mod
 import app.ratelimit as ratelimit_mod
 from app.config import Settings
 from app.main import app
@@ -78,7 +80,7 @@ def test_per_ip_limit_allows_n_then_429(
 def test_per_ip_limit_is_independent_per_client(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A different client IP gets its own window (X-Forwarded-For first hop honored)."""
+    """A different client IP gets its own window (keyed on the X-Forwarded-For client IP)."""
     _configure_limits(monkeypatch, rate_limit_per_min=1, daily_cap=1000)
 
     first = client.post(
@@ -123,3 +125,44 @@ def test_health_is_never_rate_limited(
     for _ in range(5):
         resp = client.get("/health")
         assert resp.status_code == 200
+
+
+def test_xff_uses_rightmost_hop_not_spoofable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Varying the client-controlled LEFT X-Forwarded-For hop must NOT create fresh buckets.
+
+    Render appends the real peer as the rightmost hop, so keying on the rightmost hop means
+    a spoofed left value can't dodge the per-IP limit.
+    """
+    _configure_limits(monkeypatch, rate_limit_per_min=1, daily_cap=1000)
+
+    first = client.post(
+        "/analyze", json={"text": "a"}, headers={"X-Forwarded-For": "9.9.9.9, 1.1.1.1"}
+    )
+    assert first.status_code == 200
+
+    # Different spoofed left hop, SAME real (rightmost) hop -> same bucket -> 429.
+    second = client.post(
+        "/analyze", json={"text": "b"}, headers={"X-Forwarded-For": "8.8.8.8, 1.1.1.1"}
+    )
+    assert second.status_code == 429
+
+
+def test_login_is_rate_limited(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """POST /login is throttled per-IP (anti-brute-force): with a low limit, wrong-code
+    attempts return 401 up to the cap, then 429."""
+    settings = Settings(
+        invite_code="letmein",
+        session_secret="s3cret",
+        login_attempts_per_min=3,
+    )
+    for mod in (auth_mod, main_mod, ratelimit_mod):
+        monkeypatch.setattr(mod, "get_settings", lambda: settings)
+
+    statuses = [client.post("/login", json={"code": "wrong"}).status_code for _ in range(3)]
+    assert statuses == [401, 401, 401]
+
+    throttled = client.post("/login", json={"code": "wrong"})
+    assert throttled.status_code == 429
+    assert "login" in throttled.json()["detail"]

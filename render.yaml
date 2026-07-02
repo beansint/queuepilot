@@ -12,6 +12,11 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      # --- Runtime env — must be a non-"development" value so the auth cookie gets the
+      #     Secure flag in production (app/main.py: secure = environment != "development"). ---
+      - key: ENVIRONMENT
+        value: production
+
       # --- Provider keys (server-side only; never logged/returned — see app/config.py) ---
       - key: VOYAGE_API_KEY
         sync: false

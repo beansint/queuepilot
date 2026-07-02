@@ -4,7 +4,7 @@ import { toast } from "sonner"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { postFeedback } from "@/lib/api"
+import { AuthRequiredError, postFeedback } from "@/lib/api"
 import type { AnalyzeResponse } from "@/lib/types"
 
 interface FeedbackWidgetProps {
@@ -12,11 +12,14 @@ interface FeedbackWidgetProps {
   /** The ticket text that was analyzed to produce `response`, used so corrections carry enough
    * context to be stored as eval data. */
   submittedText?: string
+  /** Called when a feedback submit 401s (session expired/missing) so the caller can route back
+   * to the login gate — mirrors how `App.runAnalysis` handles `AuthRequiredError`. */
+  onAuthExpired?: () => void
 }
 
 const DISABLED_REASON = "Feedback needs tracing enabled — no run to attach to"
 
-export function FeedbackWidget({ response, submittedText }: FeedbackWidgetProps) {
+export function FeedbackWidget({ response, submittedText, onAuthExpired }: FeedbackWidgetProps) {
   const runId = response.trace?.run_id
   const disabled = response.trace?.enabled !== true || !runId
 
@@ -55,6 +58,10 @@ export function FeedbackWidget({ response, submittedText }: FeedbackWidgetProps)
       setSelectedScore(score)
       toast.success("Thanks for the feedback")
     } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        onAuthExpired?.()
+        return
+      }
       const message = err instanceof Error ? err.message : "Couldn't submit feedback"
       toast.error("Feedback failed", { description: message })
     } finally {
@@ -82,6 +89,10 @@ export function FeedbackWidget({ response, submittedText }: FeedbackWidgetProps)
       setCorrectionSent(true)
       toast.success("Thanks for the feedback")
     } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        onAuthExpired?.()
+        return
+      }
       const message = err instanceof Error ? err.message : "Couldn't submit correction"
       toast.error("Feedback failed", { description: message })
     } finally {

@@ -25,6 +25,10 @@ const SAMPLE_TICKET =
 type Status = "idle" | "loading" | "error" | "success"
 type AuthGate = "checking" | "gated" | "open"
 
+/** How long the initial auth check is allowed to hang before we fail open rather than
+ * stranding the user on a blank "checking" screen (e.g. a slow Render cold start). */
+const AUTH_CHECK_TIMEOUT_MS = 5000
+
 function nextTicketId(): string {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
@@ -51,8 +55,27 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void checkAuth()
+    // Race the initial auth check against a timeout so a stalled/never-settling request
+    // (e.g. a slow cold start or hung connection) can't leave the user stuck on a blank
+    // "checking" screen forever — fail open the same way the catch above does.
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      setAuthGate((current) => (current === "checking" ? "open" : current))
+    }, AUTH_CHECK_TIMEOUT_MS)
+
+    void checkAuth().finally(() => {
+      if (!timedOut) clearTimeout(timer)
+    })
+
+    return () => clearTimeout(timer)
   }, [checkAuth])
+
+  const handleAuthExpired = useCallback(() => {
+    setStatus("idle")
+    setSubmitted(null)
+    setAuthGate("gated")
+  }, [])
 
   const runAnalysis = useCallback(async (text: string) => {
     const trimmed = text.trim()
@@ -67,9 +90,7 @@ export default function App() {
       setStatus("success")
     } catch (err) {
       if (err instanceof AuthRequiredError) {
-        setStatus("idle")
-        setSubmitted(null)
-        setAuthGate("gated")
+        handleAuthExpired()
         return
       }
       const message = err instanceof Error ? err.message : "Something went wrong analyzing this ticket."
@@ -77,7 +98,7 @@ export default function App() {
       setStatus("error")
       toast.error("Analysis failed", { description: message })
     }
-  }, [])
+  }, [handleAuthExpired])
 
   function handleNewAnalysis() {
     setStatus("idle")
@@ -172,7 +193,11 @@ export default function App() {
             <ConfidenceHero response={result} />
             <AttributeTiles response={result} />
             <SuggestedReply response={result} />
-            <FeedbackWidget response={result} submittedText={submitted?.text} />
+            <FeedbackWidget
+              response={result}
+              submittedText={submitted?.text}
+              onAuthExpired={handleAuthExpired}
+            />
             <SimilarTicketsTable tickets={result.similar_tickets} />
             {result.debug && (
               <ExplainPanel
