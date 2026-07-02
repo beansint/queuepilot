@@ -2,9 +2,13 @@ import { useEffect, useState } from "react"
 import {
   Activity,
   ArrowRight,
+  FlaskConical,
   GitFork,
   MessageSquareText,
+  Radio,
+  RefreshCw,
   Route,
+  Scale,
   Sparkles,
   ShieldCheck,
 } from "lucide-react"
@@ -107,6 +111,31 @@ const RELIABILITY_ROWS: { claimed: string; actual: string }[] = [
   { claimed: "0.48", actual: "0.38" },
   { claimed: "0.62", actual: "0.52" },
   { claimed: "0.85", actual: "0.71" },
+]
+
+// The eval layer — "claim → proof". This is what turns "we think it's calibrated" into a
+// number you can trust, and the reason the demo keeps improving. (See docs/learn/10-*.)
+const EVAL_PROOF = [
+  {
+    icon: FlaskConical,
+    label: "Held-out benchmark",
+    text: "Scored with LangSmith evaluate() over tickets the index never saw — zero leakage. The numbers above come from here, not a hunch.",
+  },
+  {
+    icon: Scale,
+    label: "A different-model judge",
+    text: "Reply quality is graded by Gemini — a separate model — so the generator never marks its own homework.",
+  },
+  {
+    icon: Radio,
+    label: "Online + offline",
+    text: "The same evaluators run pre-deploy on the benchmark and live, against real production traffic.",
+  },
+  {
+    icon: RefreshCw,
+    label: "Feedback flywheel",
+    text: "Thumbs-up/down + corrections become new benchmark examples — the eval set grows as the demo is used.",
+  },
 ]
 
 /**
@@ -506,6 +535,27 @@ function CalibrationSection() {
               Claimed and actual track each other — "62% confident" really means right ~52–62% of
               the time.
             </p>
+          </div>
+        </div>
+
+        {/* How the number is earned — the eval layer (offline/online eval, LLM-as-judge, flywheel) */}
+        <div className="mt-10 border-t border-border pt-8">
+          <span className="mb-4 block font-mono text-[10.5px] font-bold tracking-[0.09em] text-accent-foreground uppercase">
+            How that number is earned
+          </span>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {EVAL_PROOF.map(({ icon: Icon, label, text }) => (
+              <div
+                key={label}
+                className="flex flex-col gap-2 rounded-xl border border-border bg-white px-4 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+              >
+                <Icon className="size-4 text-accent-foreground" strokeWidth={2.2} />
+                <div className="text-[13.5px] font-bold tracking-[-0.01em] text-foreground">
+                  {label}
+                </div>
+                <p className="text-[12.5px] leading-relaxed text-muted-foreground">{text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
