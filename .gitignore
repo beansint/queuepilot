@@ -23,8 +23,12 @@ data/*.csv
 .idea/
 .vscode/
 
-# Generated retrieval artifacts (BM25 params, etc.)
-data/artifacts/
+# Generated retrieval artifacts — ignore the dir's contents EXCEPT the fitted BM25 vocab,
+# which is required at runtime (the Dockerfile COPYs it) and is committed so the image can
+# build from a clean checkout (Render/CI). It is derived "system state" (07-DATASET.md),
+# small (~42KB), and not secret. Raw corpus + other artifacts stay ignored.
+data/artifacts/*
+!data/artifacts/bm25_params.json
 
 # Claude Code internal worktrees/state
 .claude/
