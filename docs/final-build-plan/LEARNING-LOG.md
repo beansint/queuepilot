@@ -50,10 +50,10 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | In-app explainability (`?explain=true`) | C8 | `docs/learn/09-explainability.md` | `learn/09_explainability.py` | **done** | Explainability is a self-contained, in-app accumulator (`reasoning` + confidence/SLA breakdowns) built from the same deterministic functions the graph already runs — so `?explain=true` shows the exact arithmetic behind a decision without depending on LangSmith or making any extra calls. |
 
 ## Slice D
-| Concept | Doc | Status |
-|---|---|---|
-| Offline vs online eval | `docs/learn/08-eval.md` | not-started |
-| Building an eval dataset | `docs/learn/09-eval-datasets.md` | not-started |
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| Offline vs online eval | D11 | `docs/learn/11-eval.md` | `learn/11_eval.py` | **done** | Offline eval is a reproducible, pre-deploy gate — fixed target, fixed dataset, deterministic evaluators, same numbers every run — while online eval grades real production traffic and human feedback post-deploy; QueuePilot runs both (`eval/run_experiment.py` + `eval/run_online.py` + `POST /feedback`) because each sees a failure mode the other structurally cannot. |
+| Building an eval dataset | D12 | `docs/learn/12-eval-datasets.md` | `learn/12_eval_datasets.py` | **done** | A held-out split only earns the word "held-out" when leakage is checked by assertion, not assumed by convention — QueuePilot samples strictly from records beyond the indexing cap, stratifies by label, hand-injects edge cases, and fails loudly the instant an eval id turns up in the indexed set. |
 
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_

@@ -62,3 +62,30 @@ class AnalyzeResponse(BaseModel):
 
     # --- reserved; None until Slice C, and only populated when ?explain=true ---
     debug: dict[str, Any] | None = None
+
+
+class FeedbackRequest(BaseModel):
+    """Human feedback on a prior ``/analyze`` result (Slice D — D9).
+
+    ``run_id`` is the LangSmith run id returned in a prior ``/analyze`` response's
+    ``trace.run_id`` (Slice C); it is the join key between an analysis and its feedback.
+    """
+
+    run_id: str
+    score: int
+    correction: dict[str, Any] | None = None
+    comment: str | None = None
+
+    @field_validator("run_id")
+    @classmethod
+    def _non_empty_run_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("run_id must not be empty")
+        return value
+
+    @field_validator("score")
+    @classmethod
+    def _score_is_thumbs(cls, value: int) -> int:
+        if value not in (0, 1):
+            raise ValueError("score must be 0 (thumbs down) or 1 (thumbs up)")
+        return value

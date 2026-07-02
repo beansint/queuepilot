@@ -12,10 +12,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
+from langsmith import Client
 
 from app.analyze.graph_analyzer import get_graph_analyzer
 from app.config import get_settings
-from app.schemas import AnalyzeRequest, AnalyzeResponse
+from app.feedback import get_feedback_client, submit_feedback
+from app.schemas import AnalyzeRequest, AnalyzeResponse, FeedbackRequest
 
 app = FastAPI(
     title="QueuePilot",
@@ -52,6 +54,27 @@ def analyze(
     Raises 422 automatically on request validation failure (e.g. oversized text).
     """
     return get_graph_analyzer().analyze(req.text, explain=explain)
+
+
+def _get_feedback_client() -> Client | None:
+    """Lazily build the LangSmith client used by ``POST /feedback``.
+
+    Not cached: ``get_feedback_client()`` is cheap (env export + ``Client()`` construction)
+    and re-checking settings each call keeps the endpoint responsive to config changes
+    without a stale singleton. Returns ``None`` when LangSmith is unconfigured.
+    """
+    return get_feedback_client()
+
+
+@app.post("/feedback")
+def feedback(req: FeedbackRequest) -> dict[str, bool]:
+    """Submit human feedback (thumbs + optional correction) on a prior ``/analyze`` run.
+
+    See docs/final-build-plan/03-API-CONTRACT.md (POST /feedback, Slice D — D15) and
+    docs/final-build-plan/11-SLICE-D-DESIGN.md (D9). Best-effort: always returns
+    ``{"ok": True}``, even when LangSmith is unconfigured or the call fails.
+    """
+    return submit_feedback(req, client=_get_feedback_client())
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { SubmittedTicket } from "@/components/console/SubmittedTicket"
 import { ConfidenceHero } from "@/components/console/ConfidenceHero"
 import { AttributeTiles } from "@/components/console/AttributeTiles"
 import { SuggestedReply } from "@/components/console/SuggestedReply"
+import { FeedbackWidget } from "@/components/console/FeedbackWidget"
 import { SimilarTicketsTable } from "@/components/console/SimilarTicketsTable"
 import { ExplainPanel } from "@/components/console/ExplainPanel"
 import { TraceStrip } from "@/components/console/TraceStrip"
@@ -139,6 +140,7 @@ export default function App() {
             <ConfidenceHero response={result} />
             <AttributeTiles response={result} />
             <SuggestedReply response={result} />
+            <FeedbackWidget response={result} />
             <SimilarTicketsTable tickets={result.similar_tickets} />
             {result.debug && (
               <ExplainPanel
