@@ -16,6 +16,16 @@ if (!window.matchMedia) {
   }))
 }
 
+// jsdom lacks ResizeObserver, which Radix's Popper (used by Tooltip) reads on mount.
+if (!window.ResizeObserver) {
+  class ResizeObserverMock {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  }
+  window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+}
+
 // Unmount React trees between tests so queries don't leak across cases.
 afterEach(() => {
   cleanup()

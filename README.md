@@ -4,16 +4,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+**▶ Live demo: https://queuepilot-jjpg.onrender.com** (invite-gated — ask for an access code).
+
 An **agentic AI ticketing system** for IT/helpdesk support: paste a ticket and get back a routed
 queue, priority, similar historical cases, and a confidence score — built on **hybrid retrieval**
 (dense + sparse) over a real support-ticket corpus, with a guarded "support copilot" workflow.
 
-> **Status:** Slices A (Foundation & Retrieval Loop) and B (Agentic Workflow) complete — `/analyze` is
-> driven by a LangGraph state machine over hybrid retrieval on 3,000 real tickets. Slice C
-> (Dashboard + Observability) is **in progress**: LangSmith tracing and the opt-out `--explain` debug
-> mode are landing on the backend now; the single-page console is designed (Vite + React + Tailwind +
-> shadcn, served by this same FastAPI app) but its **build is paused pending a UI-design session** —
-> no dashboard yet. Evaluation and deployment land in Slices D–E (see [Roadmap](#roadmap)).
+> **Status:** Slices **A–E complete**. `/analyze` runs a LangGraph guarded-copilot workflow over
+> hybrid retrieval on 3,000 real tickets; a Vite/React console + LangSmith tracing + `--explain`
+> ship the observability layer; a LangSmith eval suite (offline + online + calibration + feedback
+> flywheel) grades it; and the whole thing is Dockerized and **deployed to Render** behind invite-code
+> auth + rate limiting. See [Roadmap](#roadmap).
 
 It's also a **learning project**: every component ships a concept doc + runnable script + self-quiz
 (see [The learning layer](#the-learning-layer)).
@@ -131,6 +132,37 @@ and the rest of `trace` is `null` — no external calls, no error. See
 [`docs/final-build-plan/09-SLICE-C-DESIGN.md`](docs/final-build-plan/09-SLICE-C-DESIGN.md) for the
 full design.
 
+## Run in Docker / Deploy
+
+One multi-stage image serves the React console **and** the API (a Node stage builds the bundle; a
+lean Python/uv stage runs it). Secrets are injected at run time — never baked into the image.
+
+```bash
+docker build -t queuepilot:local .
+docker run --rm -p 8000:8000 --env-file .env queuepilot:local   # → http://localhost:8000
+```
+
+**Invite-code gate + rate limiting** (Slice E). When `INVITE_CODE` **and** `SESSION_SECRET` are set,
+`POST /analyze` and `POST /feedback` require a signed HTTP-only cookie obtained from `POST /login`
+(`GET /health` stays open for platform health checks). Unset either var and auth is **open** (local
+dev). Per-IP rate limiting + a global daily cap (`RATE_LIMIT_PER_MIN`, `DAILY_CAP`) protect the
+provider quotas; over-limit returns `429`.
+
+**Deploy to Render** (free tier) via the committed [`render.yaml`](render.yaml) Blueprint: connect the
+repo, then set the env vars in the dashboard (all `sync: false` secrets; `SESSION_SECRET` is
+auto-generated). Render builds the `Dockerfile` itself on `git push` — **no `docker push`/registry step** —
+injects `$PORT`, and health-checks `/health`. Free instances cold-start (~30–60s) after idle; a $7/mo
+instance stays always-on. See
+[`docs/final-build-plan/12-SLICE-E-DESIGN.md`](docs/final-build-plan/12-SLICE-E-DESIGN.md).
+
+> **Deploying to a registry/AWS ECS instead?** Then you *do* push the image. On Apple Silicon, build
+> for the cloud's architecture or it'll fail with `exec format error` on amd64 Fargate:
+> ```bash
+> docker build --platform linux/amd64 -t <acct>.dkr.ecr.<region>.amazonaws.com/queuepilot:v1 .
+> docker push <acct>.dkr.ecr.<region>.amazonaws.com/queuepilot:v1   # then point an ECS task def at it
+> ```
+> `docs/learn/13-containerization.md` §7 covers the Render-vs-ECS models in full.
+
 ## The learning layer
 
 A core part of this project: every concept ships a doc + a standalone runnable script + a self-quiz,
@@ -153,9 +185,9 @@ Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
 |---|---|---|
 | **A — Foundation & Retrieval Loop** | hybrid retrieval + baseline `/analyze` | ✅ done |
 | **B — Agentic Workflow** | LangGraph state machine (classify → assess → score → decide → draft) | ✅ done |
-| **C — Dashboard + Observability** | LangSmith tracing + `--explain` (backend) landing; console designed, build paused pending UI-design session | 🚧 in progress |
-| **D — Evaluation** | LangSmith offline + online eval | planned |
-| **E — Deploy & Harden** | Docker → Render, invite-code auth, rate limiting | planned |
+| **C — Dashboard + Observability** | Vite/React console + LangSmith tracing + `--explain` | ✅ done |
+| **D — Evaluation** | LangSmith offline + online eval, experiments, feedback flywheel, calibration | ✅ done |
+| **E — Deploy & Harden** | Docker → Render (live), invite-code cookie auth, rate limiting + daily cap, CI | ✅ done |
 
 ## Dataset & license
 

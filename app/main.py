@@ -8,14 +8,28 @@ frontend is paused, so this degrades to a placeholder page when frontend/dist is
 
 from __future__ import annotations
 
+import hmac
+from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
+from langsmith import Client
+from pydantic import BaseModel
 
 from app.analyze.graph_analyzer import get_graph_analyzer
+from app.auth import (
+    COOKIE_MAX_AGE,
+    COOKIE_NAME,
+    auth_required,
+    is_request_authenticated,
+    issue_cookie_value,
+    require_auth,
+)
 from app.config import get_settings
-from app.schemas import AnalyzeRequest, AnalyzeResponse
+from app.feedback import get_feedback_client, submit_feedback
+from app.ratelimit import login_rate_limit, rate_limit
+from app.schemas import AnalyzeRequest, AnalyzeResponse, FeedbackRequest
 
 app = FastAPI(
     title="QueuePilot",
@@ -31,7 +45,67 @@ def health() -> dict[str, str]:
     return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+class LoginRequest(BaseModel):
+    """Body for ``POST /login`` — the single shared invite code (Slice E — D16)."""
+
+    code: str
+
+
+@app.post("/login", dependencies=[Depends(login_rate_limit)])
+def login(req: LoginRequest, response: Response) -> dict[str, bool]:
+    """Exchange the shared invite code for a signed HTTP-only session cookie.
+
+    A no-op ``{"ok": True}`` when auth is unconfigured (graceful-degradation — see
+    ``app.auth.auth_required``). Otherwise ``401`` on a wrong code; on a match, sets
+    ``qp_session`` (HTTP-only, ``SameSite=Lax``, ``Secure`` outside development) and
+    returns ``{"ok": True}``.
+    """
+    settings = get_settings()
+    if not auth_required():
+        return {"ok": True}
+    # settings.invite_code is guaranteed non-empty here (auth_required() checked both).
+    # Compare as bytes: hmac.compare_digest raises TypeError on non-ASCII str inputs, so a
+    # code with non-ASCII characters would otherwise 500 instead of returning 401.
+    submitted = req.code.encode("utf-8")
+    expected = (settings.invite_code or "").encode("utf-8")
+    if not hmac.compare_digest(submitted, expected):
+        raise HTTPException(status_code=401, detail="invalid invite code")
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=issue_cookie_value(),
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=(settings.environment != "development"),
+        path="/",
+    )
+    return {"ok": True}
+
+
+@app.post("/logout")
+def logout(response: Response) -> dict[str, bool]:
+    """Clear the session cookie. Always returns ``{"ok": True}``."""
+    response.delete_cookie(key=COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@app.get("/auth/status")
+def auth_status(request: Request) -> dict[str, bool]:
+    """Report whether auth is required and whether this request is authenticated.
+
+    Always open (never gated by ``require_auth``) — the frontend needs this to decide
+    whether to show the login gate at all.
+    """
+    required = auth_required()
+    authenticated = required and is_request_authenticated(request)
+    return {"required": required, "authenticated": authenticated}
+
+
+@app.post(
+    "/analyze",
+    response_model=AnalyzeResponse,
+    dependencies=[Depends(require_auth), Depends(rate_limit)],
+)
 def analyze(
     req: AnalyzeRequest,
     explain: bool = Query(
@@ -52,6 +126,30 @@ def analyze(
     Raises 422 automatically on request validation failure (e.g. oversized text).
     """
     return get_graph_analyzer().analyze(req.text, explain=explain)
+
+
+@lru_cache(maxsize=1)
+def _get_feedback_client() -> Client | None:
+    """Build (and cache) the LangSmith client used by ``POST /feedback``.
+
+    Cached like ``app.analyze.graph_analyzer.get_graph_analyzer`` — building a fresh
+    ``langsmith.Client()`` (and its connection pool/threads) on every request is wasteful
+    since LangSmith config doesn't change within a process lifetime. Returns ``None``
+    (also cached) when LangSmith is unconfigured, so unconfigured deployments no-op cheaply
+    on every call rather than re-attempting client construction each time.
+    """
+    return get_feedback_client()
+
+
+@app.post("/feedback", dependencies=[Depends(require_auth), Depends(rate_limit)])
+def feedback(req: FeedbackRequest) -> dict[str, bool]:
+    """Submit human feedback (thumbs + optional correction) on a prior ``/analyze`` run.
+
+    See docs/final-build-plan/03-API-CONTRACT.md (POST /feedback, Slice D — D15) and
+    docs/final-build-plan/11-SLICE-D-DESIGN.md (D9). Best-effort: always returns
+    ``{"ok": True}``, even when LangSmith is unconfigured or the call fails.
+    """
+    return submit_feedback(req, client=_get_feedback_client())
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,56 @@
+# Render Blueprint (Slice E9) — deploys the single Docker image built by ./Dockerfile as one
+# free-tier web service. All values below marked `sync: false` are secrets/config that must be
+# set manually in the Render dashboard (Service → Environment) — nothing sensitive is committed
+# here. Render injects `$PORT` at runtime; the Dockerfile's CMD already binds to it.
+services:
+  - type: web
+    name: queuepilot
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # --- Runtime env — must be a non-"development" value so the auth cookie gets the
+      #     Secure flag in production (app/main.py: secure = environment != "development"). ---
+      - key: ENVIRONMENT
+        value: production
+
+      # --- Provider keys (server-side only; never logged/returned — see app/config.py) ---
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # --- LangSmith observability (Slice C) ---
+      # Only the API key is a secret (prompted). The rest have sensible defaults so the
+      # Blueprint doesn't prompt for them — override in the dashboard if ever needed.
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: LANGSMITH_PROJECT
+        value: queuepilot
+      - key: LANGSMITH_ENDPOINT
+        value: https://aws.api.smith.langchain.com
+
+      # --- Public-demo hardening (Slice E: invite-code auth + signed cookie, D16) ---
+      - key: INVITE_CODE
+        sync: false
+      # Render can generate this one for you instead of you supplying a value.
+      - key: SESSION_SECRET
+        generateValue: true
+
+      # --- Provider registry selection (D11/D12; drop-in swap, not secret) — defaulted to
+      #     the locked defaults so they aren't prompted; change in the dashboard to swap. ---
+      - key: EMBEDDING_PROVIDER
+        value: voyage
+      - key: CHAT_PROVIDER
+        value: groq

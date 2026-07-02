@@ -172,7 +172,9 @@ export function ConfidenceHero({ response }: ConfidenceHeroProps) {
                     type="button"
                     aria-expanded={open}
                     className={cn(
-                      "ml-1 flex shrink-0 items-center gap-1.5 rounded-lg border border-white/24 bg-white/10 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-white transition-colors hover:bg-white/18 hover:border-white/38 focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2",
+                      // Fixed width + justify-between so the "Show"/"Hide" label swap never
+                      // changes the button footprint and reflows the decision scale above.
+                      "ml-1 flex w-[150px] shrink-0 items-center justify-between rounded-lg border border-white/24 bg-white/10 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-white transition-colors hover:bg-white/18 hover:border-white/38 focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2",
                       open && "bg-white/16 border-white/32",
                     )}
                   >

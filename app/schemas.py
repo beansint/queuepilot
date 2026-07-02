@@ -62,3 +62,41 @@ class AnalyzeResponse(BaseModel):
 
     # --- reserved; None until Slice C, and only populated when ?explain=true ---
     debug: dict[str, Any] | None = None
+
+
+class FeedbackRequest(BaseModel):
+    """Human feedback on a prior ``/analyze`` result (Slice D — D9).
+
+    ``run_id`` is the LangSmith run id returned in a prior ``/analyze`` response's
+    ``trace.run_id`` (Slice C); it is the join key between an analysis and its feedback.
+    """
+
+    run_id: str
+    score: int
+    correction: dict[str, Any] | None = None
+    comment: str | None = None
+    text: str | None = Field(
+        default=None,
+        description=(
+            "Optional original ticket text, additive for the correction flywheel "
+            "(D15 note). When present alongside `correction`, it is attached to the "
+            "flywheel example's `inputs` next to `run_id` so eval.dataset's "
+            "`analyze_target` (which needs `inputs['text']`) can replay flywheel "
+            "corrections as usable eval data. Omitting it keeps the pre-existing "
+            "`{'run_id': ...}`-only behavior."
+        ),
+    )
+
+    @field_validator("run_id")
+    @classmethod
+    def _non_empty_run_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("run_id must not be empty")
+        return value
+
+    @field_validator("score")
+    @classmethod
+    def _score_is_thumbs(cls, value: int) -> int:
+        if value not in (0, 1):
+            raise ValueError("score must be 0 (thumbs down) or 1 (thumbs up)")
+        return value

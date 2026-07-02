@@ -55,10 +55,16 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 | From classic RAG to a guarded agentic copilot (+ calibration) | overview | `docs/learn/10-rag-to-guarded-copilot.md` (+ interactive `docs/learn/10-rag-to-guarded-copilot.html`) | `learn/10_calibration_demo.py` | **done** | The step up from classic RAG is *calibration*: never trust the LLM's self-reported confidence (it's overconfident); instead blend observable signals (neighbour agreement, retrieval closeness, LLM/majority consistency, missing-info penalty) into a score that actually tracks accuracy, then route answer/clarify/escalate on it. The interactive HTML lets you drag the signals and watch the decision move. |
 
 ## Slice D
-| Concept | Doc | Status |
-|---|---|---|
-| Offline vs online eval | `docs/learn/11-eval.md` | not-started |
-| Building an eval dataset | `docs/learn/12-eval-datasets.md` | not-started |
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| Offline vs online eval | D11 | `docs/learn/11-eval.md` | `learn/11_eval.py` | **done** | Offline eval is a reproducible, pre-deploy gate — fixed target, fixed dataset, deterministic evaluators, same numbers every run — while online eval grades real production traffic and human feedback post-deploy; QueuePilot runs both (`eval/run_experiment.py` + `eval/run_online.py` + `POST /feedback`) because each sees a failure mode the other structurally cannot. |
+| Building an eval dataset | D12 | `docs/learn/12-eval-datasets.md` | `learn/12_eval_datasets.py` | **done** | A held-out split only earns the word "held-out" when leakage is checked by assertion, not assumed by convention — QueuePilot samples strictly from records beyond the indexing cap, stratifies by label, hand-injects edge cases, and fails loudly the instant an eval id turns up in the indexed set. |
+
+## Slice E
+| Concept | Task | Doc | Script | Status | Takeaway |
+|---|---|---|---|---|---|
+| Containerization (Docker, multi-stage, local run) | E3 | `docs/learn/13-containerization.md` | `learn/13_containerization.py` | **done** | A multi-stage Dockerfile builds the React bundle in a throwaway Node stage and ships a lean Python runtime that copies just the built `dist` — cache by copying dependency manifests before source, bind `0.0.0.0` so the port is reachable outside the container, respect `$PORT`, and inject `.env` at run time (never bake secrets into a layer) so one image runs identically locally and on Render. |
+| Securing a public API (invite cookie, rate limit, daily cap) | E7 | `docs/learn/14-securing-a-public-api.md` | `learn/14_securing_a_public_api.py` | **done** | A signed, HttpOnly, SameSite=Lax cookie (stdlib HMAC + `hmac.compare_digest`) proves "this browser knows the invite code" without a session store or a new dependency, every gate degrades to open when its env var is unset, and a per-IP rate limit plus a global daily cap are two independent guards — one client hammering the API vs. many clients draining the shared provider budget. |
 
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_

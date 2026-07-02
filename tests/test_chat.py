@@ -8,7 +8,7 @@ import pytest
 
 import app.providers.chat as chat_mod
 from app.config import Settings
-from app.providers.chat import GroqChat, get_chat_model
+from app.providers.chat import GeminiChat, GroqChat, get_chat_model
 
 
 class _FakeMessage:
@@ -102,3 +102,75 @@ def test_registry_missing_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     with pytest.raises(RuntimeError, match="API key is not set"):
         get_chat_model()
+
+
+# ---------------------------------------------------------------------------
+# GeminiChat (D6 — used both as a CHAT_PROVIDER drop-in and by the eval judge)
+# ---------------------------------------------------------------------------
+
+
+class _FakeGenaiResponse:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeModels:
+    def __init__(self, text: str) -> None:
+        self._text = text
+        self.calls: list[dict[str, Any]] = []
+
+    def generate_content(self, **kwargs: Any) -> _FakeGenaiResponse:
+        self.calls.append(kwargs)
+        return _FakeGenaiResponse(self._text)
+
+
+def _fake_genai_client_factory(text: str) -> type:
+    class FakeGenaiClient:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+            self.models = _FakeModels(text)
+
+    return FakeGenaiClient
+
+
+def test_gemini_complete_returns_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("hi there"))
+    out = GeminiChat(api_key="k").complete("be terse", "hi")
+    assert out == "hi there"
+
+
+def test_gemini_complete_uses_configured_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("x"))
+    model = GeminiChat(api_key="k", model="gemini-2.5-flash")
+    model.complete("s", "u")
+    calls = model._client.models.calls  # type: ignore[attr-defined]
+    assert calls[0]["model"] == "gemini-2.5-flash"
+
+
+def test_gemini_complete_json_forces_json_mime_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory('{"a": 1}'))
+    model = GeminiChat(api_key="k")
+    out = model.complete_json("s", "u")
+    assert out == {"a": 1}
+    calls = model._client.models.calls  # type: ignore[attr-defined]
+    assert calls[0]["config"].response_mime_type == "application/json"
+
+
+def test_gemini_complete_json_rejects_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("not json"))
+    with pytest.raises(ValueError, match="invalid JSON"):
+        GeminiChat(api_key="k").complete_json("s", "u")
+
+
+def test_gemini_complete_json_rejects_non_object(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("[1, 2, 3]"))
+    with pytest.raises(ValueError, match="expected a JSON object"):
+        GeminiChat(api_key="k").complete_json("s", "u")
+
+
+def test_registry_resolves_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("x"))
+    monkeypatch.setattr(
+        chat_mod, "get_settings", lambda: Settings(chat_provider="gemini", gemini_api_key="k")
+    )
+    assert isinstance(get_chat_model(), GeminiChat)

@@ -72,3 +72,64 @@ artifact. Design detail: `09-SLICE-C-DESIGN.md`.
   squash-merged PR.
 - Console (C5, UI half of C6) explicitly **not** required for exit — tracked separately, resumes
   after the UI-design session.
+
+---
+
+## Slice D — Evaluation (M-D)
+Branch `slice-d-eval`. Epic `#13` / `BEA-140`. Tasks ordered; deps noted. 📚 = ships a learning
+artifact. Design detail: `11-SLICE-D-DESIGN.md`. Decisions: `05-DECISIONS-LOCKED.md → D15`.
+
+| ID | Task | GH | Linear | Deps |
+|---|---|---|---|---|
+| <a id="d1"></a>D1 | `eval/` scaffold + `EvalSettings` (judge=Gemini, dataset name/ver, sample N, k) + LangSmith `Client` factory | #21 | BEA-142 | — |
+| <a id="d2"></a>D2 | Dataset builder: post-cap stratified sampler + edge-case fixtures + leakage assertion → versioned JSONL | #22 | BEA-143 | D1 |
+| <a id="d3"></a>D3 | LangSmith dataset upload (idempotent `create_dataset` + `create_examples`) | #23 | BEA-144 | D2 |
+| <a id="d4"></a>D4 | Deterministic evaluators: exact-match (queue/priority/type) + label-recall@k | #24 | BEA-145 | D1 |
+| <a id="d5"></a>D5 | Calibration evaluator: ECE / reliability over blended confidence (validates A/B) | #25 | BEA-146 | D4 |
+| <a id="d6"></a>D6 | LLM-as-judge (Gemini) for `suggested_reply`; graceful no-op without key | #26 | BEA-147 | D1 |
+| <a id="d7"></a>D7 | Experiment runner: `evaluate()` over dataset + config knobs (alpha/prompt/model) | #27 | BEA-148 | D3,D4,D5,D6 |
+| <a id="d8"></a>D8 | Eval snapshot cards → JSON + Markdown + side-by-side diff | #28 | BEA-149 | D7 |
+| <a id="d9"></a>D9 | `POST /feedback` → LangSmith `create_feedback` + correction flywheel (D15) | #29 | BEA-150 | D1 |
+| <a id="d10"></a>D10 | Online eval runner: `list_runs` recent traces + evaluators + aggregate | #30 | BEA-151 | D4,D5 |
+| <a id="d11"></a>D11 📚 | `11-eval` concept doc + `learn/11_eval.py` + self-quiz + log row (offline vs online) | #31 | BEA-152 | D7,D10 |
+| <a id="d12"></a>D12 📚 | `12-eval-datasets` concept doc + `learn/12_eval_datasets.py` + self-quiz + log row | #32 | BEA-153 | D2 |
+| <a id="d13"></a>D13 | Frontend `FeedbackWidget` (thumbs + correction) → `POST /feedback` + vitest | #33 | BEA-154 | D9 |
+| <a id="d14"></a>D14 | Backend tests: evaluators (+calibration math), leakage, `/feedback` mocked, judge mocked, 1 gated live eval | #34 | BEA-155 | all |
+
+### Slice D exit criteria
+- A real `evaluate()` run against the LangSmith `queuepilot-eval` dataset produces exact-match,
+  label-recall@k, judge, and **calibration (ECE)** numbers; a snapshot card is committed.
+- `POST /feedback` writes feedback to LangSmith (and corrections to the flywheel dataset) end-to-end;
+  the console `FeedbackWidget` drives it.
+- Online eval runner grades recent real traces and prints an aggregate.
+- Every 📚 task has doc + runnable script + self-quiz, logged in `LEARNING-LOG.md`.
+- Tests green (deterministic evaluators offline + gated live eval); `main` clean via squash-merged PR.
+
+---
+
+## Slice E — Deploy & Harden (M-E)
+Branch `slice-e-deploy`. Epic `#14` / `BEA-141`. 📚 = ships a learning artifact. Design detail:
+`12-SLICE-E-DESIGN.md`; decisions `05-DECISIONS-LOCKED.md → D16`. (Tasks tracked under the epic;
+expand into per-task issues if needed.)
+
+| ID | Task | GH | Linear | Deps |
+|---|---|---|---|---|
+| <a id="e1"></a>E1 | `.dockerignore` + multi-stage `Dockerfile` (Node build → Python/uv runtime); build locally | #14 | BEA-141 | — |
+| <a id="e2"></a>E2 | Run container locally against real `.env`; verify `/health` + console + `/analyze` | #14 | BEA-141 | E1 |
+| <a id="e3"></a>E3 📚 | `13-containerization` doc + `learn/13_containerization.py` + self-quiz + log row | #14 | BEA-141 | E2 |
+| <a id="e4"></a>E4 | Invite-code auth: `app/auth.py`, `POST /login`+`/logout`+`/auth/status`, signed cookie, gate on `/analyze`+`/feedback` (D16) | #14 | BEA-141 | — |
+| <a id="e5"></a>E5 | Console gate screen (`LoginGate.tsx`) + authed state; `/health` open | #14 | BEA-141 | E4 |
+| <a id="e6"></a>E6 | Rate limiting (per-IP → 429) + global daily cap; config + `.env.example` | #14 | BEA-141 | — |
+| <a id="e7"></a>E7 📚 | `14-securing-a-public-api` doc + `learn/14_securing_a_public_api.py` + self-quiz + log row | #14 | BEA-141 | E4,E6 |
+| <a id="e8"></a>E8 | GitHub Actions CI: ruff + mypy + offline pytest + frontend build/vitest | #14 | BEA-141 | — |
+| <a id="e9"></a>E9 | `render.yaml` blueprint + Render deploy (user connects account/secrets) + live-URL smoke test | #14 | BEA-141 | E1,E4,E6 |
+| <a id="e10"></a>E10 | Tests: auth (cookie sign/verify, gating, 401), rate-limit 429, daily cap | #14 | BEA-141 | E4,E6 |
+| <a id="e11"></a>E11 | Docs: README deploy + demo URL + attribution; update `04`/`06` | #14 | BEA-141 | all |
+
+### Slice E exit criteria
+- `docker build` + `docker run` work locally; the containerized app serves the console + `/analyze`
+  against the real stack. 📚 `13-containerization` complete.
+- Public demo on Render behind an invite code; `/analyze`+`/feedback` gated + rate-limited + daily-capped;
+  `/health` open. Live-URL smoke test (login → analyze → feedback) passes.
+- CI green on PRs (ruff/mypy/offline pytest + frontend build). Both 📚 artifacts logged.
+- `main` clean via squash-merged PR; README has a clickable demo link.

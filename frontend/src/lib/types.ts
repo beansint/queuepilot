@@ -68,6 +68,19 @@ export interface Sentiment {
   negativity: number
 }
 
+export interface FeedbackRequest {
+  run_id: string
+  score: 0 | 1
+  correction?: { queue?: string; priority?: string; type?: string } | null
+  comment?: string | null
+  text?: string | null
+}
+
+export interface AuthStatus {
+  required: boolean
+  authenticated: boolean
+}
+
 export interface AnalyzeResponse {
   category: string | null
   queue: string | null
