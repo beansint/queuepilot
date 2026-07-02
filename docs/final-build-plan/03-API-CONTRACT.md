@@ -96,3 +96,64 @@ when LangSmith is unconfigured — feedback is best-effort, never blocks the cal
 ### Errors (feedback)
 - `422` — validation failure (missing `run_id`, `score` not in {0,1}).
 - `500` — unexpected; body `{"detail": "..."}` with no secret leakage.
+
+## GraphQL — `/graphql` (Slice F — D17)
+
+**Additive** transport over the *same* services as REST — not a replacement. Built with Strawberry
+(`strawberry-graphql[fastapi]`), co-mounted on the FastAPI app. Resolvers call
+`get_graph_analyzer().analyze()` and `submit_feedback()`, so GraphQL results are **at parity** with
+REST for the same input.
+
+### Schema (SDL)
+```graphql
+type Query {
+  analyze(text: String!, explain: Boolean = false): Analysis!
+  health: Health!
+}
+type Mutation {
+  submitFeedback(input: FeedbackInput!): Boolean!    # thumbs + optional correction; best-effort
+}
+
+type Analysis {                    # 1:1 with AnalyzeResponse (camelCased)
+  category: String
+  queue: String
+  priority: String
+  confidence: Float!
+  similarTickets: [SimilarTicket!]!
+  sentiment: Sentiment             # typed {frustration, negativity}
+  slaRisk: Float
+  escalate: Boolean
+  clarification: [String!]
+  suggestedReply: String
+  trace: JSON                      # loose LangSmith summary
+  debug: JSON                      # null unless explain: true
+}
+type SimilarTicket { score: Float!  queue: String  priority: String  type: String  snippet: String! }
+type Sentiment { frustration: Float!  negativity: Float! }
+type Health { status: String!  app: String!  environment: String! }
+input FeedbackInput { runId: String!  score: Int!  correction: JSON  comment: String  text: String }
+scalar JSON
+```
+
+### Gating & rate limiting
+`POST /graphql` reuses the **same** dependencies as REST `/analyze`:
+`GraphQLRouter(dependencies=[Depends(require_auth), Depends(rate_limit)])`. So GraphQL is invite-gated
+(`401` without a valid `qp_session` cookie when auth is configured; open when unconfigured — same
+graceful-degradation as REST) and subject to the per-IP limit + daily cap (`429`). GraphiQL (the
+in-browser explorer at `GET /graphql`) therefore requires login first. REST `GET /health` stays open.
+
+### What stays REST (not exposed in GraphQL)
+`POST /login`, `POST /logout`, `GET /auth/status` — cookie-setting / session bootstrap belongs on the
+transport, not in a resolver (avoids duplicated auth + a wider CSRF surface).
+
+### Invariants
+- **Parity:** for the same input, GraphQL `analyze` returns the same values as REST `POST /analyze`;
+  the schema is derived from the same `AnalyzeResponse` envelope. Reserved-field ownership by slice
+  (see table above) is unchanged.
+- Field selection changes only the **response shape over the wire**, never the server-side computation
+  (`analyze` runs the full LangGraph regardless of selected fields).
+- No server-only data (keys, raw provider responses) appears in any GraphQL field.
+
+### Errors (GraphQL)
+- Validation / bad query → a GraphQL `errors` array (HTTP `200`), not `422`/`500`.
+- `401` / `429` — auth / rate-limit, raised by the shared dependencies before resolution.

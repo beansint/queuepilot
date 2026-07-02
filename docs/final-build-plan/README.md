@@ -43,4 +43,4 @@ These canonical docs are the current source of truth — when state changes, upd
 ## Issue trackers
 
 GitHub `beansint/queuepilot` and Linear project `QueuePilot` (team Devs) mirror each other 1:1.
-Milestones = slices (M-A…M-E). See `04-BUILD-SEQUENCE.md` for the exact issue map.
+Milestones = slices (M-A…M-F). See `04-BUILD-SEQUENCE.md` for the exact issue map.

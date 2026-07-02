@@ -50,7 +50,10 @@ tunable for dashboards and debugging.
 - **C:** a single-page console + opt-out `--explain` debug mode + LangSmith tracing on every run.
 - **D:** LangSmith offline + online eval, experiments, feedback path.
 - **E:** Dockerized, deployed to Render, invite-code access + rate limiting.
+- **F:** an additive `/graphql` endpoint (Strawberry) exposing `analyze` (query) + `submitFeedback`
+  (mutation) at full parity with the REST envelope, gated + rate-limited like REST; GraphiQL enabled.
 
 ## Scope v1 / deferred
-**In:** the five slices above. **Deferred (out of scope for v1):** GraphQL,
+**In:** the six slices above (A–F). **Deferred (out of scope for v1):**
 Azure / Azure Service Bus, OpenAI-only, voice (ASR/TTS), full auth/user management, multi-tenant SaaS.
+(GraphQL was originally deferred; **un-deferred as additive Slice F** — see `05-DECISIONS-LOCKED.md` D17.)

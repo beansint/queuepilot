@@ -17,10 +17,12 @@ Changing anything here requires explicit user sign-off + a new entry in `05-DECI
 | Eval / tracing | **LangSmith** | Tracing in C; offline+online eval in D. |
 | Deploy | **Docker → Render** | Same app serves UI + API. |
 | Access (v1) | Invite code + signed HTTP-only cookie + rate limiting | Slice E. |
+| GraphQL API | **Strawberry** (`strawberry-graphql[fastapi]`) | **Additive** `/graphql` (Slice F, D17): read + feedback surface over the same services; REST stays primary. |
 
 ## Deferred tech (NOT in v1)
-GraphQL · Azure / Azure Service Bus · OpenAI-only · voice (ASR/TTS) · full auth · multi-tenant.
+Azure / Azure Service Bus · OpenAI-only · voice (ASR/TTS) · full auth · multi-tenant.
 These are out of scope for v1; building them now would dilute the core focus of the project.
+(GraphQL was originally deferred here too; **un-deferred in D17** as an additive Slice F surface.)
 
 ## Hard rules
 - Once the Gemini embedding **dimension** is chosen for the index, it is fixed; changing it forces a

@@ -10,15 +10,6 @@ An **agentic AI ticketing system** for IT/helpdesk support: paste a ticket and g
 queue, priority, similar historical cases, and a confidence score — built on **hybrid retrieval**
 (dense + sparse) over a real support-ticket corpus, with a guarded "support copilot" workflow.
 
-> **Status:** Slices **A–E complete**. `/analyze` runs a LangGraph guarded-copilot workflow over
-> hybrid retrieval on 3,000 real tickets; a Vite/React console + LangSmith tracing + `--explain`
-> ship the observability layer; a LangSmith eval suite (offline + online + calibration + feedback
-> flywheel) grades it; and the whole thing is Dockerized and **deployed to Render** behind invite-code
-> auth + rate limiting. See [Roadmap](#roadmap).
-
-It's also a **learning project**: every component ships a concept doc + runnable script + self-quiz
-(see [The learning layer](#the-learning-layer)).
-
 ![QueuePilot console — a support ticket triaged with routing, calibrated confidence, a grounded reply, and a LangSmith trace](frontend/public/console-preview.png)
 
 ---
@@ -235,6 +226,7 @@ Read the matching `docs/learn/NN-*.md` (with its self-quiz) alongside each demo.
 | **C — Dashboard + Observability** | Vite/React console + LangSmith tracing + `--explain` | ✅ done |
 | **D — Evaluation** | LangSmith offline + online eval, experiments, feedback flywheel, calibration | ✅ done |
 | **E — Deploy & Harden** | Docker → Render (live), invite-code cookie auth, rate limiting + daily cap, CI | ✅ done |
+| **F — GraphQL API** | additive `/graphql` (Strawberry): `analyze` query + `submitFeedback` mutation, GraphiQL explorer | 🔨 in progress |
 
 ## Dataset & license
 
