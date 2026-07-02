@@ -81,20 +81,20 @@ artifact. Design detail: `11-SLICE-D-DESIGN.md`. Decisions: `05-DECISIONS-LOCKED
 
 | ID | Task | GH | Linear | Deps |
 |---|---|---|---|---|
-| <a id="d1"></a>D1 | `eval/` scaffold + `EvalSettings` (judge=Gemini, dataset name/ver, sample N, k) + LangSmith `Client` factory | #13 | BEA-140 | — |
-| <a id="d2"></a>D2 | Dataset builder: post-cap stratified sampler + edge-case fixtures + leakage assertion → versioned JSONL | #13 | BEA-140 | D1 |
-| <a id="d3"></a>D3 | LangSmith dataset upload (idempotent `create_dataset` + `create_examples`) | #13 | BEA-140 | D2 |
-| <a id="d4"></a>D4 | Deterministic evaluators: exact-match (queue/priority/type) + label-recall@k | #13 | BEA-140 | D1 |
-| <a id="d5"></a>D5 | Calibration evaluator: ECE / reliability over blended confidence (validates A/B) | #13 | BEA-140 | D4 |
-| <a id="d6"></a>D6 📚 | LLM-as-judge (Gemini) for `suggested_reply`; graceful no-op without key | #13 | BEA-140 | D1 |
-| <a id="d7"></a>D7 | Experiment runner: `evaluate()` over dataset + config knobs (alpha/prompt/model) | #13 | BEA-140 | D3,D4,D5,D6 |
-| <a id="d8"></a>D8 | Eval snapshot cards → JSON + Markdown + side-by-side diff | #13 | BEA-140 | D7 |
-| <a id="d9"></a>D9 | `POST /feedback` → LangSmith `create_feedback` + correction flywheel (D15) | #13 | BEA-140 | D1 |
-| <a id="d10"></a>D10 | Online eval runner: `list_runs` recent traces + evaluators + aggregate | #13 | BEA-140 | D4,D5 |
-| <a id="d11"></a>D11 📚 | `11-eval` concept doc + `learn/11_eval.py` + self-quiz + log row (offline vs online) | #13 | BEA-140 | D7,D10 |
-| <a id="d12"></a>D12 📚 | `12-eval-datasets` concept doc + `learn/12_eval_datasets.py` + self-quiz + log row | #13 | BEA-140 | D2 |
-| <a id="d13"></a>D13 | Frontend `FeedbackWidget` (thumbs + correction) → `POST /feedback` + vitest | #13 | BEA-140 | D9 |
-| <a id="d14"></a>D14 | Backend tests: evaluators (+calibration math), leakage, `/feedback` mocked, judge mocked, 1 gated live eval | #13 | BEA-140 | all |
+| <a id="d1"></a>D1 | `eval/` scaffold + `EvalSettings` (judge=Gemini, dataset name/ver, sample N, k) + LangSmith `Client` factory | #21 | BEA-142 | — |
+| <a id="d2"></a>D2 | Dataset builder: post-cap stratified sampler + edge-case fixtures + leakage assertion → versioned JSONL | #22 | BEA-143 | D1 |
+| <a id="d3"></a>D3 | LangSmith dataset upload (idempotent `create_dataset` + `create_examples`) | #23 | BEA-144 | D2 |
+| <a id="d4"></a>D4 | Deterministic evaluators: exact-match (queue/priority/type) + label-recall@k | #24 | BEA-145 | D1 |
+| <a id="d5"></a>D5 | Calibration evaluator: ECE / reliability over blended confidence (validates A/B) | #25 | BEA-146 | D4 |
+| <a id="d6"></a>D6 | LLM-as-judge (Gemini) for `suggested_reply`; graceful no-op without key | #26 | BEA-147 | D1 |
+| <a id="d7"></a>D7 | Experiment runner: `evaluate()` over dataset + config knobs (alpha/prompt/model) | #27 | BEA-148 | D3,D4,D5,D6 |
+| <a id="d8"></a>D8 | Eval snapshot cards → JSON + Markdown + side-by-side diff | #28 | BEA-149 | D7 |
+| <a id="d9"></a>D9 | `POST /feedback` → LangSmith `create_feedback` + correction flywheel (D15) | #29 | BEA-150 | D1 |
+| <a id="d10"></a>D10 | Online eval runner: `list_runs` recent traces + evaluators + aggregate | #30 | BEA-151 | D4,D5 |
+| <a id="d11"></a>D11 📚 | `11-eval` concept doc + `learn/11_eval.py` + self-quiz + log row (offline vs online) | #31 | BEA-152 | D7,D10 |
+| <a id="d12"></a>D12 📚 | `12-eval-datasets` concept doc + `learn/12_eval_datasets.py` + self-quiz + log row | #32 | BEA-153 | D2 |
+| <a id="d13"></a>D13 | Frontend `FeedbackWidget` (thumbs + correction) → `POST /feedback` + vitest | #33 | BEA-154 | D9 |
+| <a id="d14"></a>D14 | Backend tests: evaluators (+calibration math), leakage, `/feedback` mocked, judge mocked, 1 gated live eval | #34 | BEA-155 | all |
 
 ### Slice D exit criteria
 - A real `evaluate()` run against the LangSmith `queuepilot-eval` dataset produces exact-match,
