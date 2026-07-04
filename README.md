@@ -87,7 +87,8 @@ START ─► retrieve ─► classify ─► sentiment ─► assess_missing ─
   below); a Vite/React console visualizes it all.
 - **Eval suite** (`eval/`) — offline `evaluate()` experiments, online eval, calibration/ECE checks,
   an LLM-as-judge evaluator, and a feedback flywheel that turns `POST /feedback` corrections into new
-  eval examples.
+  eval examples. Results are also visible in-console at `#/insights` (gated `GET /eval/snapshots`),
+  reading the committed eval-snapshot cards.
 - **Deploy** — one Docker image (console + API) shipped to Render, gated by invite-cookie auth and
   per-IP/daily rate limiting.
 
@@ -153,6 +154,7 @@ uv run python data/ingest.py              # normalize → embed → BM25 → ups
 
 uv run uvicorn app.main:app --reload      # serve the API at http://localhost:8000
 #   GET  /health     • POST /analyze     • POST /analyze?explain=true
+#   GET  /eval/snapshots • GET /eval/snapshots/{name}   — feeds the console's #/insights page
 ```
 
 **Keys** (`.env`, server-side only — see `.env.example`):

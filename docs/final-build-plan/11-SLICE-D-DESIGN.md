@@ -141,6 +141,10 @@ Disabled with a tooltip when `trace.enabled === false` (no run id to attach to).
 
 Console rendering of cards is a natural later addition; the committed Markdown is the v1 surface.
 
+**Done (PR #56):** the Insights dashboard (`#/insights`, gated `GET /eval/snapshots(/{name})`,
+`InsightsPage.tsx`) now renders these cards in-app, reading one pinned showcase snapshot
+(`eval/snapshots/a0.5-groq.json`) committed to git so prod has real data to show.
+
 ## Learning artifacts (D11–D12) 📚
 Slots already reserved in `LEARNING-LOG.md → Slice D`:
 - **`11-eval` — offline vs online eval.** Doc + `learn/11_eval.py`: run a tiny **offline** eval over a

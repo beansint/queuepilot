@@ -204,3 +204,22 @@ avoid regression risk; GraphiQL surfaces the value instead).
 client-shaped field selection, and an introspectable schema + GraphiQL is a strong portfolio signal —
 while a deliberate REST/GraphQL split (GraphQL for read/analysis, REST for liveness/auth/best-effort
 writes) is itself the senior-level API-design lesson. Full design: `13-SLICE-F-DESIGN.md`.
+
+---
+
+All decisions below: **2026-07-05**.
+
+### D18 — Pin one showcase eval snapshot in git (refines D8/`11-SLICE-D-DESIGN.md`)
+**Date:** 2026-07-05.
+**Choice:** `eval/snapshots/*.json` and `*.md` stay gitignored (they're generated, go stale, and
+shouldn't be treated as source of truth) **except** one pinned pair, `eval/snapshots/a0.5-groq.json`
+and `a0.5-groq.md`, explicitly un-ignored in `.gitignore` and committed to `main`.
+**Considered:** committing all snapshots (rejected — churns the diff every eval run, encourages
+treating stale numbers as current); generating a snapshot at deploy/build time (rejected — couples
+the Docker build to a live LangSmith/eval run, adds cost and flakiness to every deploy); leaving the
+Insights dashboard (PR #56) to render an empty state in prod (rejected — a portfolio demo with a
+blank dashboard reads as unfinished).
+**Why:** the new Insights dashboard (`#/insights`, `GET /eval/snapshots`) needs *something* to render
+against a fresh prod deploy, and the honest choice is one real, labeled experiment run rather than
+fabricated or synthetic numbers — the pinned snapshot is real output from `eval/run_experiment.py`
+(alpha=0.5, Groq chat), clearly named so it reads as "one real run," not a live/rolling metric.

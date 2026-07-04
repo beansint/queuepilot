@@ -73,3 +73,10 @@ A1 → `docs/learn/00-tooling-and-skeleton.md` + `learn/00_config_demo.py`.
 
 ## Open questions / things I got stuck on
 _(log friction here as you go — great material to revisit)_
+
+- **(PR #56) LangSmith usage/cost isn't automatic with a bare `@traceable`.** Wrapping a raw provider
+  SDK call (`GroqChat`/`GeminiChat`) in `@traceable` traces the call but does **not** extract token
+  usage the way `wrap_openai`/LangChain chat models do — `resp.usage` has to be read from the
+  provider response and attached explicitly (`get_current_run_tree().set(usage_metadata=..., ...)`),
+  plus `ls_model_name` stamped so LangSmith can match a pricing entry. No new concept doc/script for
+  this — it's a targeted fix to the existing `08-langsmith-tracing` concept, not a new one.

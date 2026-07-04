@@ -88,6 +88,17 @@ Both are strictly additive — no existing field changes shape or meaning. **No 
 - **C9** tests: `trace` no-op path, `debug` populated/absent paths, mocked-chat offline coverage +
   gated live LangSmith integration test.
 
+## Post-C: shipped
+Two gaps this doc left open have since shipped, via **PR #56**:
+- **LangSmith token/cost tracking.** `GroqChat`/`GeminiChat` were discarding `resp.usage` before
+  returning — a bare `@traceable` doesn't auto-extract usage the way `wrap_openai`/LangChain chat
+  models do. Fixed by attaching `usage_metadata` + `ls_model_name` to the current run tree; a real
+  Groq call now reports non-zero tokens (89) and a model name. Cost still needs a one-time manual
+  pricing entry for `llama-3.3-70b-versatile` / `gemini-2.5-flash` in LangSmith → Settings → Model
+  Pricing (an operator step, not something code can do).
+- **Insights dashboard** — the console rendering of Slice D's eval snapshot cards
+  (`11-SLICE-D-DESIGN.md`'s "natural later addition") is now live at `#/insights`.
+
 ## Constraints
 - Same HTTP contract: `POST /analyze` keeps its existing request/response shape; `trace` and `debug`
   are backward-compatible additions, never repurposed fields (per `03`'s invariant).
