@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import {
   Activity,
+  ArrowLeft,
   ArrowRight,
   Braces,
   FlaskConical,
@@ -20,6 +21,10 @@ import { cn } from "@/lib/utils"
 
 interface LandingProps {
   onAuthed: () => void
+  /** When true, the visitor is already logged in — CTAs enter the console instead of gating. */
+  authed?: boolean
+  /** Called to leave the landing page and return to the console (authed mode only). */
+  onEnterConsole?: () => void
 }
 
 const SPECS: { value: string; label: string }[] = [
@@ -148,7 +153,7 @@ const EVAL_PROOF = [
  * `design/mockups/direction-final-command-precise.html`): light canvas, hairline borders,
  * mono micro-labels, flat-blue (no gradient) accents, and studio-precise restraint.
  */
-export function Landing({ onAuthed }: LandingProps) {
+export function Landing({ onAuthed, authed = false, onEnterConsole }: LandingProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
@@ -160,12 +165,22 @@ export function Landing({ onAuthed }: LandingProps) {
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [modalOpen])
 
+  // Logged-in visitors reach this page via the console's "Overview" nav — their
+  // CTAs should drop straight into the console, not re-open the invite gate.
+  const enterConsole = onEnterConsole ?? (() => {})
+  const onCta = authed ? enterConsole : () => setModalOpen(true)
+  const ctaLabel = authed ? "Open console" : "Get started"
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      <TopNav onGetStarted={() => setModalOpen(true)} />
+      <TopNav
+        onCta={onCta}
+        ctaLabel={ctaLabel}
+        onBackToConsole={authed ? enterConsole : undefined}
+      />
 
       <main>
-        <Hero onGetStarted={() => setModalOpen(true)} />
+        <Hero onCta={onCta} ctaLabel={ctaLabel} />
         <SpecStrip />
         <UpgradesSection />
         <CalibrationSection />
@@ -188,11 +203,29 @@ export function Landing({ onAuthed }: LandingProps) {
   )
 }
 
-function TopNav({ onGetStarted }: { onGetStarted: () => void }) {
+function TopNav({
+  onCta,
+  ctaLabel,
+  onBackToConsole,
+}: {
+  onCta: () => void
+  ctaLabel: string
+  onBackToConsole?: () => void
+}) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-white/85 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
+          {onBackToConsole && (
+            <button
+              type="button"
+              onClick={onBackToConsole}
+              aria-label="Back to console"
+              className="mr-1 flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-[#CBD5E1] hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+          )}
           <div className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             <BrandGlyph className="size-[18px]" />
           </div>
@@ -224,10 +257,10 @@ function TopNav({ onGetStarted }: { onGetStarted: () => void }) {
           </a>
           <button
             type="button"
-            onClick={onGetStarted}
+            onClick={onCta}
             className="hidden items-center rounded-lg border border-primary bg-primary px-3.5 py-1.75 text-[13px] font-semibold text-primary-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-px hover:border-hero hover:bg-hero hover:shadow-[0_4px_14px_rgba(15,23,42,0.07)] sm:flex focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
           >
-            Get started
+            {ctaLabel}
           </button>
         </nav>
       </div>
@@ -235,7 +268,7 @@ function TopNav({ onGetStarted }: { onGetStarted: () => void }) {
   )
 }
 
-function Hero({ onGetStarted }: { onGetStarted: () => void }) {
+function Hero({ onCta, ctaLabel }: { onCta: () => void; ctaLabel: string }) {
   return (
     <section className="relative border-b border-border">
       {/* Extremely subtle hairline grid — keeps the canvas from feeling flat without any glow. */}
@@ -270,10 +303,10 @@ function Hero({ onGetStarted }: { onGetStarted: () => void }) {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={onGetStarted}
+              onClick={onCta}
               className="flex items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary px-5 py-2.75 text-[14px] font-semibold text-primary-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-px hover:border-hero hover:bg-hero hover:shadow-[0_4px_14px_rgba(15,23,42,0.07)] focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
             >
-              Get started
+              {ctaLabel}
               <ArrowRight className="size-4" />
             </button>
             <a

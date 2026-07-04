@@ -2,16 +2,28 @@ import { useState } from "react"
 import { Copy, HelpCircle, Pencil, Send, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import type { AnalyzeResponse } from "@/lib/types"
+import { resolveDecision } from "@/lib/derive"
+import { EscalationPanel } from "@/components/console/EscalationPanel"
 
 interface SuggestedReplyProps {
   response: AnalyzeResponse
+  /** Original ticket text, forwarded to the escalation panel's "Copy for handoff". */
+  submittedText?: string
 }
 
-export function SuggestedReply({ response }: SuggestedReplyProps) {
+export function SuggestedReply({ response, submittedText }: SuggestedReplyProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(response.suggested_reply ?? "")
   const neighborCount = response.similar_tickets.length
+  // Escalated tickets never get a drafted reply (the graph routes escalate → END
+  // without running draft_reply). Show a purpose-built escalation panel instead of
+  // a hollow "no reply" reply card.
+  const isEscalation = resolveDecision(response) === "escalate"
   const isClarification = !response.suggested_reply && !!response.clarification?.length
+
+  if (isEscalation) {
+    return <EscalationPanel response={response} submittedText={submittedText} />
+  }
 
   async function handleCopy() {
     const text = isClarification ? (response.clarification ?? []).join("\n") : draft

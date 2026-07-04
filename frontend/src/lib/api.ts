@@ -99,3 +99,15 @@ export async function login(code: string): Promise<void> {
     throw new Error(await _extractDetail(res))
   }
 }
+
+/**
+ * Clear the session cookie via POST /logout (endpoint at app/main.py). Always
+ * resolves on a 2xx; throws on any non-ok response so the caller can surface a
+ * "couldn't sign out" toast and stay put rather than half-clearing UI state.
+ */
+export async function logout(): Promise<void> {
+  const res = await fetch("/logout", { method: "POST" })
+  if (!res.ok) {
+    throw new Error(await _extractDetail(res))
+  }
+}

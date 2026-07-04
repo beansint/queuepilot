@@ -1,4 +1,4 @@
-import { GitCompareArrows } from "lucide-react"
+import { ArrowRight, GitCompareArrows } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils"
 
 interface SimilarTicketsTableProps {
   tickets: SimilarTicket[]
+  /** When provided, renders a "View all" affordance that opens the full evidence page. */
+  onViewAll?: () => void
 }
 
 function priorityChipClass(priority: string | null): string {
@@ -22,17 +24,28 @@ function priorityChipClass(priority: string | null): string {
   return "bg-secondary text-secondary-foreground"
 }
 
-export function SimilarTicketsTable({ tickets }: SimilarTicketsTableProps) {
+export function SimilarTicketsTable({ tickets, onViewAll }: SimilarTicketsTableProps) {
   const maxScore = Math.max(0.001, ...tickets.map((t) => t.score))
 
   return (
     <>
-      <div className="mt-7 mb-3 flex items-center justify-between">
+      <div className="mt-7 mb-3 flex items-center justify-between gap-4">
         <h2 className="flex items-center gap-2 text-[13.5px] font-bold tracking-[-0.005em]">
           <GitCompareArrows className="size-[15px] text-accent-foreground" />
           Similar tickets
         </h2>
-        <span className="font-mono text-xs text-muted-foreground/80">Ranked by retrieval score</span>
+        {onViewAll && tickets.length > 0 ? (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="group flex items-center gap-1 rounded font-mono text-xs font-semibold text-accent-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+          >
+            View all
+            <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        ) : (
+          <span className="font-mono text-xs text-muted-foreground/80">Ranked by retrieval score</span>
+        )}
       </div>
       <section aria-label="Similar tickets evidence" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         {tickets.length === 0 ? (

@@ -88,3 +88,30 @@ export const SAMPLE_RESPONSE: AnalyzeResponse = {
     decision: "answer",
   },
 }
+
+/**
+ * An escalation response (the ransomware ticket): confidence below the escalate
+ * line + extreme SLA risk, so the graph routes escalate -> END and never drafts a
+ * reply. `suggested_reply` and `clarification` are both null by design.
+ */
+export const ESCALATION_RESPONSE: AnalyzeResponse = {
+  category: "Incident",
+  queue: "Technical Support",
+  priority: "high",
+  confidence: 0.32,
+  similar_tickets: SAMPLE_RESPONSE.similar_tickets,
+  sentiment: { frustration: 0.8, negativity: 0.9 },
+  sla_risk: 0.94,
+  escalate: true,
+  clarification: null,
+  suggested_reply: null,
+  trace: SAMPLE_RESPONSE.trace,
+  debug: {
+    ...SAMPLE_RESPONSE.debug!,
+    nodes: [
+      { name: "assess_missing", rationale: "4 missing details: no error message, no OS version" },
+      { name: "decide", rationale: "escalate (confidence < 0.35 -> route to human)" },
+    ],
+    decision: "escalate",
+  },
+}
