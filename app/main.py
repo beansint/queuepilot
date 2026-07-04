@@ -27,6 +27,7 @@ from app.auth import (
     require_auth,
 )
 from app.config import get_settings
+from app.eval_api import router as eval_router
 from app.feedback import get_feedback_client, submit_feedback
 from app.graphql import build_graphql_router
 from app.ratelimit import login_rate_limit, rate_limit
@@ -207,5 +208,13 @@ def _register_frontend_routes(fastapi_app: FastAPI) -> None:
 # rate-limited by the same dependencies as REST /analyze (inside build_graphql_router).
 # ---------------------------------------------------------------------------
 app.include_router(build_graphql_router(), prefix="/graphql")
+
+# ---------------------------------------------------------------------------
+# Eval snapshots (D8 follow-up): additive /eval/snapshots surface over the
+# committed eval/snapshots/*.json cards, gated by the same require_auth +
+# rate_limit dependencies as REST /analyze. Mounted before the frontend routes
+# for the same reason as /graphql above.
+# ---------------------------------------------------------------------------
+app.include_router(eval_router)
 
 _register_frontend_routes(app)

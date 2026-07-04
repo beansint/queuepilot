@@ -1,4 +1,10 @@
-import type { AnalyzeResponse, AuthStatus, FeedbackRequest } from "@/lib/types"
+import type {
+  AnalyzeResponse,
+  AuthStatus,
+  FeedbackRequest,
+  SnapshotCard,
+  SnapshotListResponse,
+} from "@/lib/types"
 
 /** Shared 401-aware error, so callers can special-case "please log in" vs other failures. */
 export class AuthRequiredError extends Error {
@@ -110,4 +116,39 @@ export async function logout(): Promise<void> {
   if (!res.ok) {
     throw new Error(await _extractDetail(res))
   }
+}
+
+/**
+ * List available eval snapshots with headline summary stats (GET /eval/snapshots,
+ * app/eval_api.py). Same-origin, same 401 -> AuthRequiredError handling as the rest
+ * of this module.
+ */
+export async function getEvalSnapshots(): Promise<SnapshotListResponse> {
+  const res = await fetch("/eval/snapshots")
+
+  if (res.status === 401) {
+    throw new AuthRequiredError(await _extractDetail(res))
+  }
+  if (!res.ok) {
+    throw new Error(await _extractDetail(res))
+  }
+
+  return (await res.json()) as SnapshotListResponse
+}
+
+/**
+ * Fetch the full card (metrics + optional baseline diff) for one eval snapshot
+ * (GET /eval/snapshots/{name}, app/eval_api.py).
+ */
+export async function getEvalSnapshot(name: string): Promise<SnapshotCard> {
+  const res = await fetch(`/eval/snapshots/${encodeURIComponent(name)}`)
+
+  if (res.status === 401) {
+    throw new AuthRequiredError(await _extractDetail(res))
+  }
+  if (!res.ok) {
+    throw new Error(await _extractDetail(res))
+  }
+
+  return (await res.json()) as SnapshotCard
 }

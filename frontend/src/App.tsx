@@ -18,6 +18,7 @@ import { SummaryRail } from "@/components/console/SummaryRail"
 import { IdleRail } from "@/components/console/IdleRail"
 import { ResultSkeleton } from "@/components/console/ResultSkeleton"
 import { EvidencePage } from "@/components/console/EvidencePage"
+import { InsightsPage } from "@/components/console/InsightsPage"
 import { Landing } from "@/components/marketing/Landing"
 import { AuthRequiredError, analyzeTicket, getAuthStatus, logout } from "@/lib/api"
 import { useHashRoute } from "@/lib/useHashRoute"
@@ -179,6 +180,19 @@ export default function App() {
         <MobileNav route="evidence" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled />
         <NavRail route="evidence" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled />
         <EvidencePage response={result} submittedText={submitted?.text} onBack={() => navigate("console")} />
+        <Toaster />
+      </div>
+    )
+  }
+
+  // Insights page shares the same NavRail shell as Evidence, but needs no prior
+  // analysis (no redirect guard) — it fetches its own eval-snapshot data on mount.
+  if (route === "insights") {
+    return (
+      <div className="grid min-h-screen grid-cols-1 md:grid-cols-[232px_1fr]">
+        <MobileNav route="insights" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled={evidenceAvailable} />
+        <NavRail route="insights" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled={evidenceAvailable} />
+        <InsightsPage onBack={() => navigate("console")} onAuthExpired={handleAuthExpired} />
         <Toaster />
       </div>
     )

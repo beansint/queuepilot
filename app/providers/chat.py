@@ -8,14 +8,54 @@ drop-ins selectable by `CHAT_PROVIDER`. See docs/final-build-plan/05-DECISIONS-L
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Protocol
 
 from google import genai
 from google.genai import types as genai_types
 from groq import Groq
 from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
 
 from app.config import get_settings
+
+_logger = logging.getLogger(__name__)
+
+
+def _report_usage(input_tokens: int | None, output_tokens: int | None, model: str) -> None:
+    """Attach token usage + model name to the current LangSmith run, if one is active.
+
+    LangSmith computes per-run cost from a ``usage_metadata`` dict of shape
+    ``{"input_tokens", "output_tokens", "total_tokens"}`` set on the run (see
+    ``RunTree.set(usage_metadata=...)``). Bare ``@traceable`` does not auto-extract
+    usage from raw provider SDK responses the way ``wrap_openai``/LangChain chat
+    models do, so each provider call here reports it explicitly.
+
+    We also stamp ``ls_model_name`` into the run metadata: LangSmith matches its
+    per-model pricing table on that name to turn usage into a **cost**. Without it,
+    tokens show but Cost stays blank (the run name ``GroqChat.complete`` isn't a
+    model). The model still needs a matching entry in LangSmith → Settings → Model
+    Pricing for custom models like ``llama-3.3-70b-versatile`` / ``gemini-2.5-flash``.
+
+    This is pure tracing bookkeeping: any failure (no active run, missing/None
+    usage fields, SDK shape drift) is swallowed so it can never break the LLM call.
+    """
+    if input_tokens is None or output_tokens is None:
+        return
+    try:
+        run = get_current_run_tree()
+        if run is None:
+            return
+        run.set(
+            usage_metadata={
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
+            metadata={"ls_model_name": model},
+        )
+    except Exception:
+        _logger.debug("_report_usage: could not attach usage_metadata to run tree", exc_info=True)
 
 
 class ChatModel(Protocol):
@@ -57,6 +97,12 @@ class GroqChat:
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        usage = getattr(resp, "usage", None)
+        _report_usage(
+            getattr(usage, "prompt_tokens", None),
+            getattr(usage, "completion_tokens", None),
+            self.MODEL,
+        )
         return resp.choices[0].message.content or ""
 
     @traceable(run_type="llm", name="GroqChat.complete_json")
@@ -69,6 +115,12 @@ class GroqChat:
             ],
             temperature=temperature,
             response_format={"type": "json_object"},
+        )
+        usage = getattr(resp, "usage", None)
+        _report_usage(
+            getattr(usage, "prompt_tokens", None),
+            getattr(usage, "completion_tokens", None),
+            self.MODEL,
         )
         content = resp.choices[0].message.content or "{}"
         try:
@@ -110,6 +162,12 @@ class GeminiChat:
                 max_output_tokens=max_tokens,
             ),
         )
+        usage = getattr(resp, "usage_metadata", None)
+        _report_usage(
+            getattr(usage, "prompt_token_count", None),
+            getattr(usage, "candidates_token_count", None),
+            self._model,
+        )
         return resp.text or ""
 
     @traceable(run_type="llm", name="GeminiChat.complete_json")
@@ -122,6 +180,12 @@ class GeminiChat:
                 temperature=temperature,
                 response_mime_type="application/json",
             ),
+        )
+        usage = getattr(resp, "usage_metadata", None)
+        _report_usage(
+            getattr(usage, "prompt_token_count", None),
+            getattr(usage, "candidates_token_count", None),
+            self._model,
         )
         content = resp.text or "{}"
         try:

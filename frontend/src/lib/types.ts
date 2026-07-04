@@ -95,3 +95,53 @@ export interface AnalyzeResponse {
   trace: TraceSummary | null
   debug: DebugPayload | null
 }
+
+/** One calibration bucket row in a snapshot's reliability table (mirrors
+ * `eval/card.py`'s `reliability` list — see `app/eval_api.py::ReliabilityBucket`). */
+export interface ReliabilityBucket {
+  lo: number
+  hi: number
+  n: number
+  claimed: number | null
+  accuracy: number | null
+}
+
+/** Aggregate metrics for one eval run (mirrors `app/eval_api.py::SnapshotMetrics`,
+ * itself modeled on the real dict shape built by `eval/card.py::build_card`). All
+ * fields are optional/nullable — a partial eval run renders as "n/a" rather than
+ * being rounded up to a full score. */
+export interface SnapshotMetrics {
+  n: number | null
+  config: Record<string, unknown> | null
+  queue_match: number | null
+  priority_match: number | null
+  type_match: number | null
+  label_recall_at_k: number | null
+  reply_quality: number | null
+  ece: number | null
+  reliability: ReliabilityBucket[]
+  skipped_evaluators: string[]
+}
+
+/** Full card payload for one snapshot — `GET /eval/snapshots/{name}`. */
+export interface SnapshotCard {
+  metrics: SnapshotMetrics
+  baseline: SnapshotMetrics | null
+}
+
+/** One row in the `GET /eval/snapshots` listing. */
+export interface SnapshotSummary {
+  name: string
+  n: number | null
+  config: Record<string, unknown> | null
+  queue_match: number | null
+  priority_match: number | null
+  type_match: number | null
+  label_recall_at_k: number | null
+  reply_quality: number | null
+  ece: number | null
+}
+
+export interface SnapshotListResponse {
+  snapshots: SnapshotSummary[]
+}

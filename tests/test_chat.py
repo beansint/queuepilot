@@ -174,3 +174,150 @@ def test_registry_resolves_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
         chat_mod, "get_settings", lambda: Settings(chat_provider="gemini", gemini_api_key="k")
     )
     assert isinstance(get_chat_model(), GeminiChat)
+
+
+# ---------------------------------------------------------------------------
+# Token usage → LangSmith usage_metadata (LangSmith cost tracking fix)
+# ---------------------------------------------------------------------------
+
+
+class _FakeUsage:
+    """Fakes both Groq's ``resp.usage`` and Gemini's ``resp.usage_metadata`` shapes."""
+
+    def __init__(
+        self,
+        *,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        prompt_token_count: int | None = None,
+        candidates_token_count: int | None = None,
+    ) -> None:
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.prompt_token_count = prompt_token_count
+        self.candidates_token_count = candidates_token_count
+
+
+class _FakeRunTree:
+    def __init__(self) -> None:
+        self.set_calls: list[dict[str, Any]] = []
+
+    def set(self, **kwargs: Any) -> None:
+        self.set_calls.append(kwargs)
+
+
+def test_groq_complete_reports_usage_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod, "Groq", _fake_groq_factory("hello"))
+    fake_run = _FakeRunTree()
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", lambda: fake_run)
+
+    model = GroqChat(api_key="k")
+    completions = model._client.chat.completions
+    orig_create = completions.create
+    completions.create = lambda **kwargs: _with_usage(  # type: ignore[method-assign]
+        orig_create(**kwargs), _FakeUsage(prompt_tokens=11, completion_tokens=4)
+    )
+
+    model.complete("s", "u")
+
+    assert fake_run.set_calls == [
+        {
+            "usage_metadata": {"input_tokens": 11, "output_tokens": 4, "total_tokens": 15},
+            "metadata": {"ls_model_name": GroqChat.MODEL},
+        }
+    ]
+
+
+def test_groq_complete_json_reports_usage_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod, "Groq", _fake_groq_factory('{"a": 1}'))
+    fake_run = _FakeRunTree()
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", lambda: fake_run)
+
+    model = GroqChat(api_key="k")
+    completions = model._client.chat.completions
+    orig_create = completions.create
+    completions.create = lambda **kwargs: _with_usage(  # type: ignore[method-assign]
+        orig_create(**kwargs), _FakeUsage(prompt_tokens=20, completion_tokens=5)
+    )
+
+    model.complete_json("s", "u")
+
+    assert fake_run.set_calls == [
+        {
+            "usage_metadata": {"input_tokens": 20, "output_tokens": 5, "total_tokens": 25},
+            "metadata": {"ls_model_name": GroqChat.MODEL},
+        }
+    ]
+
+
+def test_groq_usage_missing_does_not_call_run_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No `.usage` on the response (or a None field) must not touch the run tree."""
+    monkeypatch.setattr(chat_mod, "Groq", _fake_groq_factory("hello"))
+    fake_run = _FakeRunTree()
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", lambda: fake_run)
+
+    GroqChat(api_key="k").complete("s", "u")
+
+    assert fake_run.set_calls == []
+
+
+def test_report_usage_swallows_run_tree_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A broken/garbage-collected run tree must never break the LLM call."""
+
+    def _boom() -> Any:
+        raise RuntimeError("no active run")
+
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", _boom)
+
+    chat_mod._report_usage(10, 5, "m")  # must not raise
+
+
+def test_gemini_complete_reports_usage_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory("hi"))
+    fake_run = _FakeRunTree()
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", lambda: fake_run)
+
+    model = GeminiChat(api_key="k")
+    models_ns = model._client.models
+    orig_generate = models_ns.generate_content
+    models_ns.generate_content = lambda **kwargs: _with_usage(  # type: ignore[method-assign]
+        orig_generate(**kwargs), _FakeUsage(prompt_token_count=30, candidates_token_count=8)
+    )
+
+    model.complete("s", "u")
+
+    assert fake_run.set_calls == [
+        {
+            "usage_metadata": {"input_tokens": 30, "output_tokens": 8, "total_tokens": 38},
+            "metadata": {"ls_model_name": "gemini-2.5-flash"},
+        }
+    ]
+
+
+def test_gemini_complete_json_reports_usage_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_mod.genai, "Client", _fake_genai_client_factory('{"a": 1}'))
+    fake_run = _FakeRunTree()
+    monkeypatch.setattr(chat_mod, "get_current_run_tree", lambda: fake_run)
+
+    model = GeminiChat(api_key="k")
+    models_ns = model._client.models
+    orig_generate = models_ns.generate_content
+    models_ns.generate_content = lambda **kwargs: _with_usage(  # type: ignore[method-assign]
+        orig_generate(**kwargs), _FakeUsage(prompt_token_count=12, candidates_token_count=6)
+    )
+
+    model.complete_json("s", "u")
+
+    assert fake_run.set_calls == [
+        {
+            "usage_metadata": {"input_tokens": 12, "output_tokens": 6, "total_tokens": 18},
+            "metadata": {"ls_model_name": "gemini-2.5-flash"},
+        }
+    ]
+
+
+def _with_usage(resp: Any, usage: _FakeUsage) -> Any:
+    """Attach ``usage``/``usage_metadata`` to an already-built fake response object."""
+    resp.usage = usage
+    resp.usage_metadata = usage
+    return resp

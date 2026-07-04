@@ -1,4 +1,4 @@
-import { Activity, GitCompareArrows, LayoutTemplate } from "lucide-react"
+import { Activity, BarChart3, GitCompareArrows, LayoutTemplate } from "lucide-react"
 import type { Route } from "@/lib/useHashRoute"
 
 /**
@@ -26,6 +26,12 @@ export function getWorkspaceItems(evidenceEnabled: boolean): NavDestination[] {
       route: "evidence",
       disabled: !evidenceEnabled,
       disabledHint: "Run an analysis to see similar-ticket evidence",
+    },
+    {
+      key: "insights",
+      icon: <BarChart3 />,
+      label: "Insights",
+      route: "insights",
     },
   ]
 }

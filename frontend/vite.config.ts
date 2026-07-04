@@ -21,6 +21,7 @@ export default defineConfig({
       '/login': 'http://localhost:8000',
       '/logout': 'http://localhost:8000',
       '/feedback': 'http://localhost:8000',
+      '/eval': 'http://localhost:8000',
     },
   },
   test: {

@@ -7,6 +7,7 @@ describe("routeFromHash", () => {
     expect(routeFromHash("")).toBe("console")
     expect(routeFromHash("#/")).toBe("console")
     expect(routeFromHash("#/evidence")).toBe("evidence")
+    expect(routeFromHash("#/insights")).toBe("insights")
     expect(routeFromHash("#/overview")).toBe("overview")
     expect(routeFromHash("#/bogus")).toBe("console")
   })
@@ -50,5 +51,12 @@ describe("useHashRoute", () => {
     const { result } = renderHook(() => useHashRoute())
     act(() => result.current.navigate("console"))
     expect(result.current.route).toBe("console")
+  })
+
+  it("navigate('insights') updates the hash and the reported route", () => {
+    const { result } = renderHook(() => useHashRoute())
+    act(() => result.current.navigate("insights"))
+    expect(window.location.hash).toBe("#/insights")
+    expect(result.current.route).toBe("insights")
   })
 })
