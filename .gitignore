@@ -47,3 +47,7 @@ frontend/dist/
 # eval/run_online.py). eval/snapshots/.gitkeep is intentionally NOT covered by this.
 eval/snapshots/*.json
 eval/snapshots/*.md
+# ...except one pinned, real "showcase" snapshot so the Insights dashboard renders
+# genuine eval numbers in prod (labelled "committed eval run, not live traffic").
+!eval/snapshots/a0.5-groq.json
+!eval/snapshots/a0.5-groq.md

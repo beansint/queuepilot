@@ -6,21 +6,24 @@ import { useCallback, useEffect, useState } from "react"
  * destinations the console has:
  *   - "console"  → the ticket-analysis workspace (default / empty hash)
  *   - "evidence" → the full similar-tickets evidence page (needs a result)
+ *   - "insights" → the eval-snapshot insights page (no prior analysis needed)
  *   - "overview" → the marketing landing page, viewable while logged in
  */
-export type Route = "console" | "evidence" | "overview"
+export type Route = "console" | "evidence" | "insights" | "overview"
 
 const HASH_TO_ROUTE: Record<string, Route> = {
   "": "console",
   "#": "console",
   "#/": "console",
   "#/evidence": "evidence",
+  "#/insights": "insights",
   "#/overview": "overview",
 }
 
 const ROUTE_TO_HASH: Record<Route, string> = {
   console: "#/",
   evidence: "#/evidence",
+  insights: "#/insights",
   overview: "#/overview",
 }
 
