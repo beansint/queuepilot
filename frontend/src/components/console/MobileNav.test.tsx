@@ -10,7 +10,9 @@ describe("MobileNav", () => {
     const trigger = screen.getByRole("button", { name: /open menu/i })
     expect(trigger).toBeInTheDocument()
     expect(trigger).toHaveAttribute("aria-expanded", "false")
-    expect(screen.getByRole("dialog", { hidden: true })).toHaveAttribute("aria-hidden", "true")
+    // Closed → the panel is `inert` (removed from tab order + a11y tree).
+    const dialog = document.querySelector('[role="dialog"]')
+    expect(dialog).toHaveAttribute("inert")
   })
 
   it("opens the drawer on click and shows the nav destinations", async () => {
@@ -21,7 +23,7 @@ describe("MobileNav", () => {
 
     expect(screen.getByRole("button", { name: /open menu/i })).toHaveAttribute("aria-expanded", "true")
     const dialog = screen.getByRole("dialog")
-    expect(dialog).toHaveAttribute("aria-hidden", "false")
+    expect(dialog).not.toHaveAttribute("inert")
     expect(screen.getByRole("button", { name: "Analysis" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Evidence" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument()

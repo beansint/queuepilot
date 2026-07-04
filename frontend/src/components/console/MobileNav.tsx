@@ -103,7 +103,10 @@ export function MobileNav({ route, onNavigate, onLogout, evidenceEnabled }: Mobi
           ref={panelRef}
           role="dialog"
           aria-modal={open}
-          aria-hidden={!open}
+          // `inert` (React 19) removes the closed, off-screen panel from BOTH the tab
+          // order and the accessibility tree — so keyboard/SR users can't tab into
+          // hidden controls (the axe `aria-hidden-focus` trap). Supersedes aria-hidden.
+          inert={!open}
           aria-label="Navigation menu"
           tabIndex={-1}
           className={cn(
