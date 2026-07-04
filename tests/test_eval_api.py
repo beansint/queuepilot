@@ -98,3 +98,24 @@ def test_eval_snapshots_requires_auth_when_configured(
 
     resp = client.get(f"/eval/snapshots/{REAL_SNAPSHOT_NAME}")
     assert resp.status_code == 401
+
+
+def test_null_byte_name_returns_404_not_500(client: TestClient) -> None:
+    """A name whose filesystem probe raises ValueError (embedded null) → clean 404."""
+    resp = client.get("/eval/snapshots/bad%00name")
+    assert resp.status_code == 404
+
+
+def test_one_malformed_snapshot_does_not_break_the_listing(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A single unparseable card must be skipped, not 404 the whole listing."""
+    good = {"metrics": {"n": 3, "queue_match": 0.5}, "baseline": None}
+    (tmp_path / "good.json").write_text(json.dumps(good))
+    (tmp_path / "broken.json").write_text("{not valid json")  # half-written card
+    monkeypatch.setattr(eval_api_mod, "SNAPSHOTS_DIR", tmp_path)
+
+    resp = client.get("/eval/snapshots")
+    assert resp.status_code == 200
+    names = [s["name"] for s in resp.json()["snapshots"]]
+    assert names == ["good"]  # broken skipped, good survives

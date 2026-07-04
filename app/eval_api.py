@@ -97,12 +97,14 @@ def _load_snapshot_json(name: str) -> dict[str, Any]:
     """
     safe_name = Path(name).name
     path = SNAPSHOTS_DIR / f"{safe_name}.json"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail=f"no snapshot named '{name}'")
     try:
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail=f"no snapshot named '{name}'")
         parsed: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
         return parsed
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
+        # ValueError covers json.JSONDecodeError (a subclass) and embedded-null-byte
+        # names, whose filesystem probe raises ValueError — return a clean 404, not a 500.
         raise HTTPException(status_code=404, detail=f"snapshot '{name}' is unreadable") from exc
 
 
@@ -119,7 +121,12 @@ def list_snapshots() -> SnapshotListResponse:
     """List available eval snapshots with headline summary stats for each."""
     summaries: list[SnapshotSummary] = []
     for name in _list_snapshot_names():
-        payload = _load_snapshot_json(name)
+        try:
+            payload = _load_snapshot_json(name)
+        except HTTPException:
+            # One unreadable/half-written card must not take down the whole listing —
+            # skip it so the good snapshots still render.
+            continue
         metrics = payload.get("metrics") or {}
         summaries.append(
             SnapshotSummary(
