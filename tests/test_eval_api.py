@@ -78,7 +78,7 @@ def test_load_snapshot_json_rejects_path_traversal() -> None:
 
 
 def test_list_snapshots_empty_dir_returns_empty_list(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: "pytest.TempPathFactory"
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
 ) -> None:
     monkeypatch.setattr(eval_api_mod, "SNAPSHOTS_DIR", tmp_path)
     resp = client.get("/eval/snapshots")
