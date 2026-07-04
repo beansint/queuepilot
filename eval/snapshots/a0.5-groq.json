@@ -1,0 +1,49 @@
+{
+  "metrics": {
+    "n": 20,
+    "config": {
+      "alpha": 0.5,
+      "chat": "groq"
+    },
+    "queue_match": 0.35,
+    "priority_match": 0.55,
+    "type_match": 0.4,
+    "label_recall_at_k": 0.75,
+    "reply_quality": 0.875,
+    "ece": 0.15263225562266508,
+    "reliability": [
+      {
+        "lo": 0.0,
+        "hi": 0.4,
+        "n": 5,
+        "claimed": 0.2549804597957955,
+        "accuracy": 0.0
+      },
+      {
+        "lo": 0.4,
+        "hi": 0.55,
+        "n": 9,
+        "claimed": 0.486574519837554,
+        "accuracy": 0.3333333333333333
+      },
+      {
+        "lo": 0.55,
+        "hi": 0.7,
+        "n": 5,
+        "claimed": 0.6565085235071766,
+        "accuracy": 0.6
+      },
+      {
+        "lo": 0.7,
+        "hi": 1.01,
+        "n": 1,
+        "claimed": 0.8839704825995451,
+        "accuracy": 1.0
+      }
+    ],
+    "skipped_evaluators": [
+      "reply_quality"
+    ]
+  },
+  "baseline": null
+}
