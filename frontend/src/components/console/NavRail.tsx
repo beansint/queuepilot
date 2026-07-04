@@ -1,48 +1,19 @@
-import {
-  Activity,
-  BarChart3,
-  Database,
-  Inbox,
-  LifeBuoy,
-  Plug,
-  Route,
-  Settings,
-  SlidersHorizontal,
-} from "lucide-react"
+import { LifeBuoy, LogOut } from "lucide-react"
 import { BrandGlyph } from "@/components/BrandGlyph"
+import { NavItem } from "@/components/console/NavItem"
+import { getGeneralItems, getWorkspaceItems } from "@/components/console/navItems"
+import { CONTACT_URL } from "@/lib/site"
+import type { Route } from "@/lib/useHashRoute"
 
-interface NavLinkProps {
-  icon: React.ReactNode
-  label: string
-  active?: boolean
-  badge?: string
+interface NavRailProps {
+  route: Route
+  onNavigate: (route: Route) => void
+  onLogout: () => void
+  /** Whether an analysis result exists — Evidence is a dead end without one. */
+  evidenceEnabled: boolean
 }
 
-function NavLink({ icon, label, active, badge }: NavLinkProps) {
-  return (
-    <a
-      href="#"
-      aria-current={active ? "page" : undefined}
-      onClick={(e) => e.preventDefault()}
-      className={
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium tracking-[-0.006em] transition-colors " +
-        (active
-          ? "bg-accent text-accent-foreground font-semibold"
-          : "text-muted-foreground hover:bg-background hover:text-foreground")
-      }
-    >
-      <span className="[&_svg]:size-4 shrink-0">{icon}</span>
-      <span>{label}</span>
-      {badge && (
-        <span className="ml-auto rounded-full bg-primary px-1.5 py-px font-mono text-[10.5px] font-bold text-primary-foreground">
-          {badge}
-        </span>
-      )}
-    </a>
-  )
-}
-
-export function NavRail() {
+export function NavRail({ route, onNavigate, onLogout, evidenceEnabled }: NavRailProps) {
   return (
     <nav
       aria-label="Primary navigation"
@@ -62,36 +33,64 @@ export function NavRail() {
         <div className="mb-1.5 px-2.5 font-mono text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/80 uppercase">
           Workspace
         </div>
-        <NavLink icon={<Activity />} label="Analysis" active badge="1" />
-        <NavLink icon={<Inbox />} label="Queue" />
-        <NavLink icon={<BarChart3 />} label="Insights" />
-        <NavLink icon={<Database />} label="Evidence base" />
+        {getWorkspaceItems(evidenceEnabled).map((item) => (
+          <NavItem
+            key={item.key}
+            icon={item.icon}
+            label={item.label}
+            active={route === item.route}
+            disabled={item.disabled}
+            disabledHint={item.disabledHint}
+            onClick={() => onNavigate(item.route)}
+          />
+        ))}
       </div>
 
       <div className="flex flex-col gap-0.5">
         <div className="mb-1.5 px-2.5 font-mono text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/80 uppercase">
-          Configure
+          General
         </div>
-        <NavLink icon={<Route />} label="Routing rules" />
-        <NavLink icon={<SlidersHorizontal />} label="Thresholds" />
-        <NavLink icon={<Plug />} label="Integrations" />
+        {getGeneralItems().map((item) => (
+          <NavItem
+            key={item.key}
+            icon={item.icon}
+            label={item.label}
+            active={route === item.route}
+            onClick={() => onNavigate(item.route)}
+          />
+        ))}
+        <a
+          href={CONTACT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium tracking-[-0.006em] text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+        >
+          <span className="[&_svg]:size-4 shrink-0">
+            <LifeBuoy />
+          </span>
+          <span>Support</span>
+        </a>
       </div>
 
       <div className="flex-1" />
-
-      <div className="flex flex-col gap-0.5">
-        <NavLink icon={<Settings />} label="Settings" />
-        <NavLink icon={<LifeBuoy />} label="Support" />
-      </div>
 
       <div className="flex items-center gap-2.5 border-t border-border pt-3.5 pl-2.5">
         <div className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-accent-foreground font-mono text-[11px] font-bold text-primary-foreground">
           VP
         </div>
-        <div className="text-xs font-medium text-muted-foreground">
-          <strong className="block text-[12.5px] font-semibold text-foreground">Vincent Pacaña</strong>
+        <div className="min-w-0 text-xs font-medium text-muted-foreground">
+          <strong className="block truncate text-[12.5px] font-semibold text-foreground">Vincent Pacaña</strong>
           Support lead
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          aria-label="Log out"
+          title="Log out"
+          className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+        >
+          <LogOut className="size-4" />
+        </button>
       </div>
     </nav>
   )

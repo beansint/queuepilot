@@ -3,6 +3,7 @@ import { AlertCircle, RotateCcw, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 import { NavRail } from "@/components/console/NavRail"
+import { MobileNav } from "@/components/console/MobileNav"
 import { TopBar } from "@/components/console/TopBar"
 import { TicketInput } from "@/components/console/TicketInput"
 import { SubmittedTicket } from "@/components/console/SubmittedTicket"
@@ -16,8 +17,10 @@ import { TraceStrip } from "@/components/console/TraceStrip"
 import { SummaryRail } from "@/components/console/SummaryRail"
 import { IdleRail } from "@/components/console/IdleRail"
 import { ResultSkeleton } from "@/components/console/ResultSkeleton"
+import { EvidencePage } from "@/components/console/EvidencePage"
 import { Landing } from "@/components/marketing/Landing"
-import { AuthRequiredError, analyzeTicket, getAuthStatus } from "@/lib/api"
+import { AuthRequiredError, analyzeTicket, getAuthStatus, logout } from "@/lib/api"
+import { useHashRoute } from "@/lib/useHashRoute"
 import type { AnalyzeResponse } from "@/lib/types"
 
 const SAMPLE_TICKET =
@@ -35,6 +38,7 @@ function nextTicketId(): string {
 }
 
 export default function App() {
+  const { route, navigate } = useHashRoute()
   const [authGate, setAuthGate] = useState<AuthGate>("checking")
   const [inputText, setInputText] = useState(SAMPLE_TICKET)
   const [status, setStatus] = useState<Status>("idle")
@@ -77,6 +81,22 @@ export default function App() {
     setSubmitted(null)
     setAuthGate("gated")
   }, [])
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout()
+      // Clear analysis state so a re-login starts clean, then re-gate to the landing page.
+      // (No success toast: the Toaster unmounts with the console when we re-gate, so the
+      // login screen itself is the confirmation. The error path stays in the console.)
+      setStatus("idle")
+      setResult(null)
+      setSubmitted(null)
+      navigate("console")
+      setAuthGate("gated")
+    } catch {
+      toast.error("Couldn't sign out — please try again.")
+    }
+  }, [navigate])
 
   const runAnalysis = useCallback(async (text: string) => {
     const trimmed = text.trim()
@@ -129,17 +149,45 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [status])
 
+  // Evidence only exists after a successful analysis; if someone deep-links to
+  // #/evidence without one, bounce them back to the console (and fix the hash).
+  const evidenceAvailable = status === "success" && result !== null
+  useEffect(() => {
+    if (route === "evidence" && !evidenceAvailable) navigate("console")
+  }, [route, evidenceAvailable, navigate])
+
   if (authGate === "checking") {
     return <div className="min-h-screen bg-background" aria-busy="true" />
   }
 
+  // Gated (logged out): always the marketing landing, regardless of route.
   if (authGate === "gated") {
     return <Landing onAuthed={() => void checkAuth()} />
   }
 
+  // Logged-in "Overview": the marketing landing, viewable from inside the app.
+  if (route === "overview") {
+    return (
+      <Landing onAuthed={() => void checkAuth()} authed onEnterConsole={() => navigate("console")} />
+    )
+  }
+
+  // Evidence page shares the NavRail shell but drops the right-hand summary rail.
+  if (route === "evidence" && evidenceAvailable && result) {
+    return (
+      <div className="grid min-h-screen grid-cols-1 md:grid-cols-[232px_1fr]">
+        <MobileNav route="evidence" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled />
+        <NavRail route="evidence" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled />
+        <EvidencePage response={result} submittedText={submitted?.text} onBack={() => navigate("console")} />
+        <Toaster />
+      </div>
+    )
+  }
+
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[232px_1fr] xl:grid-cols-[232px_1fr_300px]">
-      <NavRail />
+      <MobileNav route="console" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled={evidenceAvailable} />
+      <NavRail route="console" onNavigate={navigate} onLogout={handleLogout} evidenceEnabled={evidenceAvailable} />
 
       <main className="w-full max-w-full min-w-0 px-4 pt-5.5 pb-15 sm:px-8 md:max-w-[920px]">
         <TopBar onNewAnalysis={handleNewAnalysis} subtitle={subtitle} />
@@ -193,13 +241,16 @@ export default function App() {
           <>
             <ConfidenceHero response={result} />
             <AttributeTiles response={result} />
-            <SuggestedReply response={result} />
+            <SuggestedReply response={result} submittedText={submitted?.text} />
             <FeedbackWidget
               response={result}
               submittedText={submitted?.text}
               onAuthExpired={handleAuthExpired}
             />
-            <SimilarTicketsTable tickets={result.similar_tickets} />
+            <SimilarTicketsTable
+              tickets={result.similar_tickets}
+              onViewAll={() => navigate("evidence")}
+            />
             {result.debug && (
               <ExplainPanel
                 ref={explainTriggerRef}
