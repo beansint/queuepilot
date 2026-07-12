@@ -6,9 +6,16 @@
 
 **▶ Live demo: https://queuepilot-jjpg.onrender.com** (invite-gated — ask for an access code).
 
-An **agentic AI ticketing system** for IT/helpdesk support: paste a ticket and get back a routed
-queue, priority, similar historical cases, and a confidence score — built on **hybrid retrieval**
-(dense + sparse) over a real support-ticket corpus, with a guarded "support copilot" workflow.
+A **client proof-of-concept MVP**: an **agentic AI support-triage system** for IT/helpdesk teams.
+Paste a ticket and get back a routed queue, priority, similar historical cases, and a confidence
+score — built on **hybrid retrieval** (dense + sparse) over a real support-ticket corpus, with a
+guarded "support copilot" workflow.
+
+> **Background.** QueuePilot was built as a **client proof-of-concept MVP** — an agentic
+> support-triage system for a client evaluating AI support-ops automation. The specific engagement
+> is under NDA (and has long since wrapped), so this repository is the self-contained reference
+> build: the same pipeline, open-sourced, with a full teach-as-you-build learning layer. It's a
+> real PoC **and** a deliberate deep-dive learning project — both are true.
 
 ![QueuePilot console — a support ticket triaged with routing, calibrated confidence, a grounded reply, and a LangSmith trace](frontend/public/console-preview.png)
 

@@ -287,7 +287,7 @@ function Hero({ onCta, ctaLabel }: { onCta: () => void; ctaLabel: string }) {
       <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-5 pt-12 pb-16 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-6 lg:pt-16 lg:pb-20">
         <div className="relative z-10">
           <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-[#8896A8] uppercase">
-            Agentic AI &middot; Guarded Support Copilot
+            Client PoC &middot; Agentic Support Copilot
           </span>
 
           <h1 className="mb-5 max-w-xl text-[34px] leading-[1.1] font-extrabold tracking-[-0.02em] text-foreground sm:text-[42px] lg:text-[48px]">
@@ -320,6 +320,11 @@ function Hero({ onCta, ctaLabel }: { onCta: () => void; ctaLabel: string }) {
           </div>
 
           <p className="mt-5 font-mono text-[11.5px] tracking-[0.02em] text-[#8896A8]">
+            Built as a client proof-of-concept MVP &middot; delivered, live, and open-sourced as a
+            reference build
+          </p>
+
+          <p className="mt-2 font-mono text-[11.5px] tracking-[0.02em] text-[#8896A8]">
             Live demo &middot; invite-gated
           </p>
         </div>
